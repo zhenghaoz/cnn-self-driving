@@ -23,6 +23,7 @@ import config
 
 class MainForm(QMainWindow):
 
+    # Commands for control
     CMD_STOP = b'\xff\x00\x00\x00\xff'
     CMD_FORWARD = b'\xff\x00\x01\x00\xff'
     CMD_BACKWARD = b'\xff\x00\x02\x00\xff'
@@ -45,6 +46,9 @@ class MainForm(QMainWindow):
 
         # Initialize states
         self.screen_shot = False
+        self.save_video = None
+        self.save_data = False
+        self.driving = False
         self.direction = self.Direction.STRAIGHT
         self.movement = self.Movement.STAY
 
@@ -68,15 +72,19 @@ class MainForm(QMainWindow):
         # Setup actions
         take_photo_action = QAction(QIcon(asset.ICON_CAMERA), 'Take Photo', self)
         take_photo_action.triggered.connect(self.task_photo)
-        record_video_action = QAction(QIcon(asset.ICON_START_VIDEO_RECORD), 'Start Video Record', self)
-        record_data_action = QAction(QIcon(asset.ICON_START_DATA_RECORD), 'Start Data Record', self)
+        self.record_video_action = QAction(QIcon(asset.ICON_START_VIDEO_RECORD), asset.STRING_START_VIDEO_RECORD, self)
+        self.record_video_action.triggered.connect(self.record_video)
+        self.record_data_action = QAction(QIcon(asset.ICON_START_DATA_RECORD), asset.STRING_START_DATA_RECORD, self)
+        self.record_data_action.triggered.connect(self.record_data)
         browse_videos_action = QAction('Browse Videos', self)
         browse_videos_action.triggered.connect(self.browse_video)
         browse_datum_action = QAction('Browse Datum', self)
         browse_datum_action.triggered.connect(self.browse_data)
         browse_photos_action = QAction('Browse Photos', self)
         browse_photos_action.triggered.connect(self.browse_photo)
-        train_action = QAction(QIcon(asset.ICON_START_TRAIN), 'Start training', self)
+        self.driving_action = QAction(QIcon(asset.ICON_SELF_DRIVING_OFF), asset.STRING_START_SELF_DRIVING, self)
+        self.driving_action.triggered.connect(self.self_driving)
+        train_action = QAction(QIcon(asset.ICON_START_TRAIN), 'Start Training', self)
         load_action = QAction(QIcon(asset.ICON_OPEN), 'Load Model', self)
         load_action.triggered.connect(self.load_model)
         save_action = QAction(QIcon(asset.ICON_SAVE), 'Save Model', self)
@@ -90,13 +98,14 @@ class MainForm(QMainWindow):
         menu = self.menuBar()
         menu_record = menu.addMenu('Record')
         menu_record.addAction(take_photo_action)
-        menu_record.addAction(record_video_action)
-        menu_record.addAction(record_data_action)
+        menu_record.addAction(self.record_video_action)
+        menu_record.addAction(self.record_data_action)
         menu_record.addSeparator()
         menu_record.addAction(browse_photos_action)
         menu_record.addAction(browse_videos_action)
         menu_record.addAction(browse_datum_action)
         menu_learn = menu.addMenu('Learn')
+        menu_learn.addAction(self.driving_action)
         menu_learn.addAction(train_action)
         menu_learn.addSeparator()
         menu_learn.addAction(load_action)
@@ -110,10 +119,11 @@ class MainForm(QMainWindow):
         tool_bar_record = self.addToolBar('Record')
         tool_bar_record.setMovable(False)
         tool_bar_record.addAction(take_photo_action)
-        tool_bar_record.addAction(record_video_action)
-        tool_bar_record.addAction(record_data_action)
+        tool_bar_record.addAction(self.record_video_action)
+        tool_bar_record.addAction(self.record_data_action)
         tool_bar_learn = self.addToolBar('Learn')
         tool_bar_learn.setMovable(False)
+        tool_bar_learn.addAction(self.driving_action)
         tool_bar_learn.addAction(train_action)
         tool_bar_learn.addAction(load_action)
         tool_bar_learn.addAction(save_action)
@@ -195,6 +205,26 @@ class MainForm(QMainWindow):
     def task_photo(self):
         self.screen_shot = True
 
+    def record_video(self):
+        if self.save_video:
+            self.save_video = None
+            self.record_video_action.setText(asset.STRING_START_VIDEO_RECORD)
+            self.record_video_action.setIcon(QIcon(asset.ICON_START_VIDEO_RECORD))
+        else:
+            self.save_video = '{0:%Y-%m-%dT%H:%M:%S}'.format(datetime.datetime.now())
+            self.record_video_action.setText(asset.STRING_STOP_VIDEO_RECORD)
+            self.record_video_action.setIcon(QIcon(asset.ICON_STOP_VIDEO_RECORD))
+
+    def record_data(self):
+        if self.save_data:
+            self.save_data = False
+            self.record_data_action.setText(asset.STRING_START_DATA_RECORD)
+            self.record_data_action.setIcon(QIcon(asset.ICON_START_DATA_RECORD))
+        else:
+            self.save_data = True
+            self.record_data_action.setText(asset.STRING_STOP_DATA_RECORD)
+            self.record_data_action.setIcon(QIcon(asset.ICON_STOP_DATA_RECORD))
+
     @staticmethod
     def browse_video():
         open_file(config.DIR_VIDEO)
@@ -206,6 +236,16 @@ class MainForm(QMainWindow):
     @staticmethod
     def browse_photo():
         open_file(config.DIR_PHOTO)
+
+    def self_driving(self):
+        if self.driving:
+            self.driving = False
+            self.driving_action.setText(asset.STRING_START_SELF_DRIVING)
+            self.driving_action.setIcon(QIcon(asset.ICON_SELF_DRIVING_OFF))
+        else:
+            self.driving = True
+            self.driving_action.setText(asset.STRING_STOP_SELF_DRIVING)
+            self.driving_action.setIcon(QIcon(asset.ICON_SELF_DRIVING_ON))
 
     def load_model(self):
         file_name = QFileDialog.getOpenFileName(self, 'Load Model', './', 'Model (*.ckpt);;All Files (*.*)')
@@ -246,6 +286,8 @@ class MainForm(QMainWindow):
         except error.URLError as e:
             self.logger.error('Stream: %s' % e.reason)
             self.label_stream_status.setText('Stream: %s' % e.reason)
+            self.pixmap.load(asset.IMAGE_OFFLINE)
+            self.monitor.setPixmap(self.pixmap.scaled(self.monitor.width(), self.monitor.height(), Qt.KeepAspectRatio))
         finally:
             return
 
