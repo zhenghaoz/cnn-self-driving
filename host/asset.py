@@ -8,6 +8,8 @@ ICON_START_TRAIN = config.DIR_ASSETS + 'start_training.png'
 ICON_SAVE = config.DIR_ASSETS + 'save.png'
 ICON_OPEN = config.DIR_ASSETS + 'open.png'
 ICON_GITHUB = config.DIR_ASSETS + 'github.png'
+ICON_ICON = config.DIR_ASSETS + 'icon.png'
+ICON_CAMERA = config.DIR_ASSETS + 'camera.png'
 
 IMAGE_OFFLINE = config.DIR_ASSETS + 'offline.jpg'
 
