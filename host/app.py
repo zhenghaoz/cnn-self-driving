@@ -1,5 +1,11 @@
 import sys
 import socket
+import asset
+import os
+import subprocess
+import platform
+import config
+import webbrowser
 from logging import Logger
 from urllib import request, error
 from threading import Thread
@@ -23,20 +29,69 @@ class MainForm(QMainWindow):
         self.logger = Logger('Host', 30)
 
         # Geometries
-        form_height = 600
-        form_width = 760
-        monitor_height = 560
-        monitor_width = form_width
+        monitor_x = 0
+        monitor_y = 96
+        monitor_height = 760
+        monitor_width = 1000
+        status_height = 32
+        form_height = monitor_y + monitor_height + status_height
+        form_width = monitor_width
 
         # Draw monitor
-        self.pixmap = QPixmap('offline.jpg')
+        self.pixmap = QPixmap(asset.IMAGE_OFFLINE)
         self.monitor = QLabel(self)
-        self.monitor.setGeometry(0, 0, monitor_width, monitor_height)
+        self.monitor.setStyleSheet('background-color: black')
+        self.monitor.setGeometry(monitor_x, monitor_y, monitor_width, monitor_height)
         self.monitor.setAlignment(Qt.AlignCenter)
         self.monitor.setPixmap(self.pixmap.scaled(self.monitor.width(), self.monitor.height(), Qt.KeepAspectRatio))
 
+        # Setup actions
+        record_video_action = QAction(QIcon(asset.ICON_START_VIDEO_RECORD), 'Start Video Record', self)
+        record_data_action = QAction(QIcon(asset.ICON_START_DATA_RECORD), 'Start Data Record', self)
+        browse_videos_action = QAction('Browse Videos', self)
+        browse_videos_action.triggered.connect(self.browse_video)
+        browse_datum_action = QAction('Browse Datum', self)
+        browse_datum_action.triggered.connect(self.browse_data)
+        train_action = QAction(QIcon(asset.ICON_START_TRAIN), 'Start training', self)
+        load_action = QAction(QIcon(asset.ICON_OPEN), 'Load Model', self)
+        save_action = QAction(QIcon(asset.ICON_SAVE), 'Save Model', self)
+        browse_home_page = QAction(QIcon(asset.ICON_GITHUB), 'Home Page', self)
+        browse_home_page.triggered.connect(self.browse_home_page)
+
+        # Draw menu
+        menu = self.menuBar()
+        menu_record = menu.addMenu('Record')
+        menu_record.addAction(record_video_action)
+        menu_record.addAction(record_data_action)
+        menu_record.addSeparator()
+        menu_record.addAction(browse_videos_action)
+        menu_record.addAction(browse_datum_action)
+        menu_learn = menu.addMenu('Learn')
+        menu_learn.addAction(train_action)
+        menu_learn.addSeparator()
+        menu_learn.addAction(load_action)
+        menu_learn.addAction(save_action)
+        menu_about = menu.addMenu('About')
+        menu_about.addAction(browse_home_page)
+
+        # Draw toolbar
+        tool_bar_record = self.addToolBar('Record')
+        tool_bar_record.setMovable(False)
+        tool_bar_record.addAction(record_video_action)
+        tool_bar_record.addAction(record_data_action)
+        tool_bar_learn = self.addToolBar('Learn')
+        tool_bar_learn.setMovable(False)
+        tool_bar_learn.addAction(train_action)
+        tool_bar_learn.addAction(load_action)
+        tool_bar_learn.addAction(save_action)
+        tool_bar_about = self.addToolBar('About')
+        tool_bar_about.setMovable(False)
+        tool_bar_about.addAction(browse_home_page)
+
         # Draw form
-        self.statusBar().showMessage('Ready')
+        self.status = QLabel()
+        self.status.setText('Ready')
+        self.statusBar().addPermanentWidget(self.status)
         self.setWindowTitle('Grand Raspberry Auto Host')
         self.setWindowIcon(QIcon('icon.png'))
         self.setFixedSize(form_width, form_height)
@@ -93,9 +148,21 @@ class MainForm(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent):
         self.streamer_running = False
-        self.statusBar().showMessage('Exiting...')
+        self.status.setText('Exiting...')
         self.sock.close()
         self.thread_streamer.join()
+
+    @staticmethod
+    def browse_video():
+        open_file(config.VIDEO_DIR)
+
+    @staticmethod
+    def browse_data():
+        open_file(config.DATA_DIR)
+
+    @staticmethod
+    def browse_home_page():
+        webbrowser.open(asset.URL_HOME_PAGE)
 
     def streamer(self):
         try:
@@ -114,6 +181,15 @@ class MainForm(QMainWindow):
             self.logger.error('Stream: %s' % e.reason)
         finally:
             return
+
+
+def open_file(path):
+    if platform.system() == "Windows":
+        os.startfile(path)
+    elif platform.system() == "Darwin":
+        subprocess.Popen(["open", path])
+    else:
+        subprocess.Popen(["xdg-open", path])
 
 
 if __name__ == '__main__':
