@@ -1,14 +1,19 @@
 import config
 
-ICON_START_VIDEO_RECORD = config.ASSETS_DIR + 'start_video_record.png'
-ICON_STOP_VIDEO_RECORD = config.ASSETS_DIR + 'stop_video_record.png'
-ICON_START_DATA_RECORD = config.ASSETS_DIR + 'start_data_record.png'
-ICON_STOP_DATA_RECORD = config.ASSETS_DIR + 'stop_data_record.png'
-ICON_START_TRAIN = config.ASSETS_DIR + 'start_training.png'
-ICON_SAVE = config.ASSETS_DIR + 'save.png'
-ICON_OPEN = config.ASSETS_DIR + 'open.png'
-ICON_GITHUB = config.ASSETS_DIR + 'github.png'
+ICON_START_VIDEO_RECORD = config.DIR_ASSETS + 'start_video_record.png'
+ICON_STOP_VIDEO_RECORD = config.DIR_ASSETS + 'stop_video_record.png'
+ICON_START_DATA_RECORD = config.DIR_ASSETS + 'start_data_record.png'
+ICON_STOP_DATA_RECORD = config.DIR_ASSETS + 'stop_data_record.png'
+ICON_START_TRAIN = config.DIR_ASSETS + 'start_training.png'
+ICON_SAVE = config.DIR_ASSETS + 'save.png'
+ICON_OPEN = config.DIR_ASSETS + 'open.png'
+ICON_GITHUB = config.DIR_ASSETS + 'github.png'
 
-IMAGE_OFFLINE = config.ASSETS_DIR + 'offline.jpg'
+IMAGE_OFFLINE = config.DIR_ASSETS + 'offline.jpg'
 
-URL_HOME_PAGE = 'https://github.com/ZhangZhenghao/GrandRaspberryAuto'
+STRING_USAGE = '''
+W   -   Forward
+S   -   Backward
+A   -   Turn Left
+D   -   Turn Right
+'''

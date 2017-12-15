@@ -54,9 +54,13 @@ class MainForm(QMainWindow):
         browse_datum_action.triggered.connect(self.browse_data)
         train_action = QAction(QIcon(asset.ICON_START_TRAIN), 'Start training', self)
         load_action = QAction(QIcon(asset.ICON_OPEN), 'Load Model', self)
+        load_action.triggered.connect(self.load_model)
         save_action = QAction(QIcon(asset.ICON_SAVE), 'Save Model', self)
-        browse_home_page = QAction(QIcon(asset.ICON_GITHUB), 'Home Page', self)
-        browse_home_page.triggered.connect(self.browse_home_page)
+        save_action.triggered.connect(self.save_model)
+        browse_home_page_action = QAction(QIcon(asset.ICON_GITHUB), 'Home Page', self)
+        browse_home_page_action.triggered.connect(self.browse_home_page)
+        show_usage_action = QAction('Usage', self)
+        show_usage_action.triggered.connect(self.usage)
 
         # Draw menu
         menu = self.menuBar()
@@ -72,7 +76,9 @@ class MainForm(QMainWindow):
         menu_learn.addAction(load_action)
         menu_learn.addAction(save_action)
         menu_about = menu.addMenu('About')
-        menu_about.addAction(browse_home_page)
+        menu_about.addAction(browse_home_page_action)
+        menu_about.addSeparator()
+        menu_about.addAction(show_usage_action)
 
         # Draw toolbar
         tool_bar_record = self.addToolBar('Record')
@@ -86,12 +92,12 @@ class MainForm(QMainWindow):
         tool_bar_learn.addAction(save_action)
         tool_bar_about = self.addToolBar('About')
         tool_bar_about.setMovable(False)
-        tool_bar_about.addAction(browse_home_page)
+        tool_bar_about.addAction(browse_home_page_action)
 
         # Draw form
-        self.status = QLabel()
-        self.status.setText('Ready')
-        self.statusBar().addPermanentWidget(self.status)
+        self.label_status = QLabel()
+        self.label_status.setText('Connecting...')
+        self.statusBar().addPermanentWidget(self.label_status)
         self.setWindowTitle('Grand Raspberry Auto Host')
         self.setWindowIcon(QIcon('icon.png'))
         self.setFixedSize(form_width, form_height)
@@ -110,63 +116,74 @@ class MainForm(QMainWindow):
         # Connect agent
         try:
             address = ('192.168.1.1', 2001)
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.sock.settimeout(1)
-            self.sock.connect(address)
+            self.ctl_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.ctl_socket.settimeout(1)
+            self.ctl_socket.connect(address)
+            self.label_status.setText('Online')
         except socket.timeout as e:
-            self.logger.error('Control: %s' % e.strerror)
+            self.logger.error('Control: timed out')
+            self.label_status.setText('Control: timed out')
 
-    def cmd_left_speed(self, speed):
+    @staticmethod
+    def cmd_left_speed(speed):
         assert speed <= 100
         return b'\xff\x02\x01' + bytes([speed]) + b'\xff'
 
-    def cmd_right_speed(self, speed):
+    @staticmethod
+    def cmd_right_speed(speed):
         assert speed <= 100
         return b'\xff\x02\x02' + bytes([speed]) + b'\xff'
 
     def keyPressEvent(self, event: QKeyEvent):
         if event.key() == Qt.Key_W:
-            self.sock.send(self.cmd_left_speed(100))
-            self.sock.send(self.cmd_right_speed(100))
-            self.sock.send(b'\xff\x00\x01\x00\xff')
+            self.ctl_socket.send(self.CMD_FORWARD)
         elif event.key() == Qt.Key_S:
-            pass
+            self.ctl_socket.send(self.CMD_BACKWARD)
         elif event.key() == Qt.Key_A:
-            pass
+            self.ctl_socket.send(self.CMD_TURN_LEFT)
         elif event.key() == Qt.Key_D:
-            pass
+            self.ctl_socket.send(self.CMD_TURN_RIGHT)
 
     def keyReleaseEvent(self, event: QKeyEvent):
-        if event.key() == Qt.Key_W:
-            self.sock.send(b'\xff\x00\x00\x00\xff')
-        elif event.key() == Qt.Key_S:
-            pass
-        elif event.key() == Qt.Key_A:
-            pass
-        elif event.key() == Qt.Key_D:
-            pass
+        if event.key() == Qt.Key_W \
+                or event.key() == Qt.Key_S \
+                or event.key() == Qt.Key_A \
+                or event.key() == Qt.Key_D:
+            self.ctl_socket.send(self.CMD_STOP)
 
     def closeEvent(self, event: QCloseEvent):
         self.streamer_running = False
-        self.status.setText('Exiting...')
-        self.sock.close()
+        self.label_status.setText('Exiting...')
+        self.ctl_socket.close()
         self.thread_streamer.join()
 
     @staticmethod
     def browse_video():
-        open_file(config.VIDEO_DIR)
+        open_file(config.DIR_VIDEO)
 
     @staticmethod
     def browse_data():
-        open_file(config.DATA_DIR)
+        open_file(config.DIR_DATA)
 
     @staticmethod
     def browse_home_page():
-        webbrowser.open(asset.URL_HOME_PAGE)
+        webbrowser.open(config.URL_HOME_PAGE)
+
+    def usage(self):
+        qbox = QMessageBox(self)
+        qbox.setWindowTitle('Usage')
+        qbox.setText(asset.STRING_USAGE)
+        qbox.show()
+
+    def load_model(self):
+        file_name = QFileDialog.getOpenFileName(self, 'Load Model', './', 'Model (*.ckpt);;All Files (*.*)')
+
+    def save_model(self):
+        file_name = QFileDialog.getSaveFileName(self, 'Save Model', './', 'Model (*.ckpt);;All Files (*.*)')
 
     def streamer(self):
         try:
-            stream = request.urlopen('http://192.168.1.1:8080/?action=stream', timeout=1)
+            stream = request.urlopen(config.URL_STREAM, timeout=1)
             data = bytes()
             while self.streamer_running:
                 data += stream.read(1024)
