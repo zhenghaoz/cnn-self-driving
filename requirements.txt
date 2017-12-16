@@ -1,2 +1,2 @@
 opencv-python
-tesnorflow-gpu
+tensorflow-gpu

@@ -25,18 +25,18 @@ print '....WIFIROBOTS START!!!...'
 #######################################
 GPIO.setmode(GPIO.BCM)
 
-########LED口定义#################
+# LED ports
 LED0 = 10
 LED1 = 9
 LED2 = 25
 
-########电机驱动接口定义#################
-ENA = 13	#//L298使能A
-ENB = 20	#//L298使能B
-IN1 = 19	#//电机接口1
-IN2 = 16	#//电机接口2
-IN3 = 21	#//电机接口3
-IN4 = 26	#//电机接口4
+# Motor ports
+ENA = 13	# L298 ENABLE A
+ENB = 20	# L298 ENABLE B
+IN1 = 19	# M1+
+IN2 = 16	# M1-
+IN3 = 21	# M2+
+IN4 = 26	# M2-
 
 ########舵机接口定义#################
 
@@ -71,7 +71,7 @@ GPIO.setup(ENA,GPIO.OUT,initial=GPIO.LOW)
 ENA_pwm=GPIO.PWM(ENA,1000) 
 ENA_pwm.start(0) 
 ENA_pwm.ChangeDutyCycle(100)
-GPIO.setup(IN1,GPIO.OUT,initial=GPIO.LOW)
+GPIO.setup(IN1,GPIO.OUT, initial=GPIO.LOW)
 GPIO.setup(IN2,GPIO.OUT,initial=GPIO.LOW)
 GPIO.setup(ENB,GPIO.OUT,initial=GPIO.LOW)
 ENB_pwm=GPIO.PWM(ENB,1000) 
@@ -117,105 +117,99 @@ def	Close_Light():#关大灯
 	GPIO.output(LED0,True)#大灯正极接5V  负极接IO口
 	time.sleep(1)
 	
-####################################################
-##函数名称 init_light()
-##函数功能 流水灯
-##入口参数 ：无
-##出口参数 ：无
-####################################################
-def	init_light():#流水灯
+def	init_light():
 	for i in range(1, 5):
-		GPIO.output(LED0,False)#流水灯LED0
-		GPIO.output(LED1,False)#流水灯LED1
-		GPIO.output(LED2,False)#流水灯LED2
+		GPIO.output(LED0,False)
+		GPIO.output(LED1,False)
+		GPIO.output(LED2,False)
 		time.sleep(0.5)
-		GPIO.output(LED0,True)#流水灯LED0
-		GPIO.output(LED1,False)#流水灯LED1
-		GPIO.output(LED2,False)#流水灯LED2
+		GPIO.output(LED0,True)
+		GPIO.output(LED1,False)
+		GPIO.output(LED2,False)
 		time.sleep(0.5)
-		GPIO.output(LED0,False)#流水灯LED0
-		GPIO.output(LED1,True)#流水灯LED1
-		GPIO.output(LED2,False)#流水灯LED2
+		GPIO.output(LED0,False)
+		GPIO.output(LED1,True)
+		GPIO.output(LED2,False)
 		time.sleep(0.5)
-		GPIO.output(LED0,False)#流水灯LED0
-		GPIO.output(LED1,False)#流水灯LED1
-		GPIO.output(LED2,True)#流水灯LED2
+		GPIO.output(LED0,False)
+		GPIO.output(LED1,False)
+		GPIO.output(LED2,True)
 		time.sleep(0.5)
-		GPIO.output(LED0,False)#流水灯LED0
-		GPIO.output(LED1,False)#流水灯LED1
-		GPIO.output(LED2,False)#流水灯LED2
+		GPIO.output(LED0,False)
+		GPIO.output(LED1,False)
+		GPIO.output(LED2,False)
 		time.sleep(0.5)
-		GPIO.output(LED0,True)#流水灯LED0
-		GPIO.output(LED1,True)#流水灯LED1
-		GPIO.output(LED2,True)#流水灯LED2
-##########机器人方向控制###########################
-def Motor_Forward():
-	print 'motor forward'
+		GPIO.output(LED0,True)
+		GPIO.output(LED1,True)
+		GPIO.output(LED2,True)
+
+def motor_forward():
+	print('Motor: forward')
 	GPIO.output(ENA,True)
 	GPIO.output(ENB,True)
 	GPIO.output(IN1,True)
 	GPIO.output(IN2,False)
 	GPIO.output(IN3,True)
 	GPIO.output(IN4,False)
-	GPIO.output(LED1,False)#LED1亮
-	GPIO.output(LED2,False)#LED1亮
-	
-def Motor_Backward():
-	print 'motor_backward'
+	GPIO.output(LED1,False)
+	GPIO.output(LED2,False)
+
+def motor_backward():
+	print('Motor: backward')
 	GPIO.output(ENA,True)
 	GPIO.output(ENB,True)
 	GPIO.output(IN1,False)
 	GPIO.output(IN2,True)
 	GPIO.output(IN3,False)
 	GPIO.output(IN4,True)
-	GPIO.output(LED1,True)#LED1灭
-	GPIO.output(LED2,False)#LED2亮
-	
-def Motor_TurnLeft():
-	print 'motor_turnleft'
+	GPIO.output(LED1,True)
+	GPIO.output(LED2,False)
+
+def motor_turn_left():
+	print('Motor: turn left')
 	GPIO.output(ENA,True)
 	GPIO.output(ENB,True)
 	GPIO.output(IN1,True)
 	GPIO.output(IN2,False)
 	GPIO.output(IN3,False)
 	GPIO.output(IN4,True)
-	GPIO.output(LED1,False)#LED1亮
-	GPIO.output(LED2,True) #LED2灭
-def Motor_TurnRight():
-	print 'motor_turnright'
+	GPIO.output(LED1,False)
+	GPIO.output(LED2,True)
+
+def motor_turn_right():
+	print('Motor: turn right')
 	GPIO.output(ENA,True)
 	GPIO.output(ENB,True)
 	GPIO.output(IN1,False)
 	GPIO.output(IN2,True)
 	GPIO.output(IN3,True)
 	GPIO.output(IN4,False)
-	GPIO.output(LED1,False)#LED1亮
-	GPIO.output(LED2,True) #LED2灭
-def Motor_Stop():
-	print 'motor_stop'
+	GPIO.output(LED1,False)
+	GPIO.output(LED2,True)
+
+def motor_stop():
+	print('Motor: stop')
 	GPIO.output(ENA,False)
 	GPIO.output(ENB,False)
 	GPIO.output(IN1,False)
 	GPIO.output(IN2,False)
 	GPIO.output(IN3,False)
 	GPIO.output(IN4,False)
-	GPIO.output(LED1,True)#LED1灭
-	GPIO.output(LED2,True)#LED2亮
-	
-##########机器人方向校准（模式中使用）###########################
+	GPIO.output(LED1,True)
+	GPIO.output(LED2,True)
 
-##########机器人速度控制###########################
-def ENA_Speed(EA_num):
-	speed=hex(eval('0x'+EA_num))
-	speed=int(speed,16)
-	print 'EA_A改变啦 %d '%speed
+def ena_speed(num):
+	speed = hex(eval('0x' + num))
+	speed = int(speed,16)
+	print('Motor: change speed for left motors to %d ' % speed)
 	ENA_pwm.ChangeDutyCycle(speed)
 
-def ENB_Speed(EB_num):
-	speed=hex(eval('0x'+EB_num))
-	speed=int(speed,16)
-	print 'EB_B改变啦 %d '%speed
-	ENB_pwm.ChangeDutyCycle(speed)	
+def enb_speed(num):
+	speed = hex(eval('0x' + num))
+	speed = int(speed,16)
+	print('Motor: change speed for right motors to %d ' % speed)
+	ENB_pwm.ChangeDutyCycle(speed)
+
 ##函数功能 ：舵机控制函数
 ##入口参数 ：ServoNum(舵机号)，angle_from_protocol(舵机角度)
 ##出口参数 ：无
@@ -275,7 +269,7 @@ def SetServoAngle(ServoNum,angle_from_protocol):
 ####################################################
 def	Avoiding(): #红外避障函数
 	if GPIO.input(IR_M) == False:
-		Motor_Stop()
+		motor_stop()
 		time.sleep(0.1)
 		return
 
@@ -287,16 +281,16 @@ def	Avoiding(): #红外避障函数
 ####################################################
 def TrackLine():
 	if (GPIO.input(IR_L) == False)&(GPIO.input(IR_R) == False): #黑线为高，地面为低
-		Motor_Forward()
+		motor_forward()
 		return
 	elif (GPIO.input(IR_L) == False)&(GPIO.input(IR_R) == True):
-		Motor_TurnRight()
+		motor_turn_right()
 		return
 	elif (GPIO.input(IR_L) == True)&(GPIO.input(IR_R) == False):
-		Motor_TurnLeft()
+		motor_turn_left()
 		return
 	elif (GPIO.input(IR_L) == True)&(GPIO.input(IR_R) == True): #两侧都碰到黑线
-		Motor_Stop()
+		motor_stop()
 		return
 
 ####################################################
@@ -308,15 +302,15 @@ def TrackLine():
 def Follow(): 
 	if(GPIO.input(IR_M) == True): #中间传感器OK
 		if(GPIO.input(IRF_L) == False)&(GPIO.input(IRF_R) == False):	#俩边同时探测到障碍物
-			Motor_Stop()			#停止 
+			motor_stop()			#停止
 		if(GPIO.input(IRF_L) == False)&(GPIO.input(IRF_R) == True):		#左侧障碍物
-			Motor_TurnRight()		#右转 
+			motor_turn_right()		#右转
 		if(GPIO.input(IRF_L) == True)& (GPIO.input(IRF_R) == False):		#右侧障碍物
-			Motor_TurnLeft()		#左转
+			motor_turn_left()		#左转
 		if(GPIO.input(IRF_L) == True)& (GPIO.input(IRF_R) == True):		#无任何障碍物
-			Motor_Forward()			#直行 
+			motor_forward()			#直行
 	else:
-		Motor_Stop()
+		motor_stop()
 
 
 ####################################################
@@ -350,15 +344,15 @@ def	AvoidByRadar(distance):
 	if(distance<10):
 		distance = 10					#限定最小避障距离为10cm
 	if((dis>1)&(dis < distance)):		#避障距离值(单位cm)，大于1是为了避免超声波的盲区
-		Motor_Stop()
+		motor_stop()
 	
 		
 def	Avoid_wave():
 	dis = Get_Distence()
 	if dis<15:
-		Motor_Stop()
+		motor_stop()
 	else:
-		Motor_Forward()
+		motor_forward()
 
 
 ####################################################
@@ -400,7 +394,7 @@ def	Cruising_Mod(func):
 	while True:
 		if (Pre_Cruising_Flag != Cruising_Flag):			
 			if (Pre_Cruising_Flag != 0):
-				Motor_Stop()
+				motor_stop()
 			Pre_Cruising_Flag = Cruising_Flag
 			print 'Pre_Cruising_Flag = Cruising_Flag == 0'
 		if(Cruising_Flag == 1):		#进入红外跟随模式
@@ -430,22 +424,22 @@ def Communication_Decode():
 	print 'Communication_decoding...'
 	if buffer[0]=='00':
 		if buffer[1]=='01':				#前进
-			Motor_Forward()
+			motor_forward()
 		elif buffer[1]=='02':			#后退
-			Motor_Backward()
+			motor_backward()
 		elif buffer[1]=='03':			#左转
-			Motor_TurnLeft()
+			motor_turn_left()
 		elif buffer[1]=='04':			#右转
-			Motor_TurnRight()
+			motor_turn_right()
 		elif buffer[1]=='00':			#停止
-			Motor_Stop()
+			motor_stop()
 		else:
-			Motor_Stop()
+			motor_stop()
 	elif buffer[0]=='02':
 		if buffer[1]=='01':#左速度
-			ENA_Speed(buffer[2])
+			ena_speed(buffer[2])
 		elif buffer[1]=='02':#右侧速度
-			ENB_Speed(buffer[2])			
+			enb_speed(buffer[2])
 	elif buffer[0]=='01':
 		if buffer[1]=='01':#1号舵机驱动
 			SetServoAngle(1,buffer[2])
