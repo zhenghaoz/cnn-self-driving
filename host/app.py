@@ -46,6 +46,7 @@ class MainForm(QMainWindow):
         self.task_video_record = None
         self.task_data_record = False
         self.lock_video_record = Lock()
+        self.task_self_driving = False
 
         # Initialize direction stack
         self.direction_stack = [self.Direction.STOP]
@@ -81,18 +82,19 @@ class MainForm(QMainWindow):
         browse_photos_action = QAction('Browse Photos', self)
         browse_photos_action.triggered.connect(self.action_browse_photo_triggered)
         self.driving_action = QAction(QIcon(asset.ICON_SELF_DRIVING_OFF), asset.STRING_START_SELF_DRIVING, self)
-        self.driving_action.triggered.connect(self.self_driving)
+        self.driving_action.triggered.connect(self.action_self_driving_triggered)
         train_action = QAction(QIcon(asset.ICON_START_TRAIN), 'Start Training', self)
         load_action = QAction(QIcon(asset.ICON_OPEN), 'Load Model', self)
         load_action.setShortcut('Ctrl+O')
-        load_action.triggered.connect(self.load_model)
+        load_action.triggered.connect(self.action_load_model_triggered)
         save_action = QAction(QIcon(asset.ICON_SAVE), 'Save Model', self)
         save_action.setShortcut('Ctrl+S')
-        save_action.triggered.connect(self.save_model)
+        save_action.triggered.connect(self.action_save_model_triggered)
+        self.action_view = QAction('View Neural Network Input', self, checkable=True)
         browse_home_page_action = QAction(QIcon(asset.ICON_GITHUB), 'Home Page', self)
-        browse_home_page_action.triggered.connect(self.browse_home_page)
+        browse_home_page_action.triggered.connect(self.action_browse_home_page_triggered)
         show_usage_action = QAction('Usage', self)
-        show_usage_action.triggered.connect(self.usage)
+        show_usage_action.triggered.connect(self.action_usage_triggered)
 
         # Draw menu
         menu = self.menuBar()
@@ -110,6 +112,8 @@ class MainForm(QMainWindow):
         menu_learn.addSeparator()
         menu_learn.addAction(load_action)
         menu_learn.addAction(save_action)
+        menu_view = menu.addMenu('View')
+        menu_view.addAction(self.action_view)
         menu_about = menu.addMenu('About')
         menu_about.addAction(browse_home_page_action)
         menu_about.addSeparator()
@@ -222,7 +226,7 @@ class MainForm(QMainWindow):
             self.actiion_video_record.setIcon(QIcon(asset.ICON_START_VIDEO_RECORD))
         else:
             # Create video writer
-            file_name = config.DIR_VIDEO + '{0:%Y-%m-%dT%H:%M:%S.%f}.avi'.format(datetime.datetime.now())
+            file_name = config.DIR_VIDEO + datetime.utcnow().strftime('%Y%m%d%H%M%S%f') + 'avi'
             self.task_video_record = cv2.VideoWriter(file_name, config.FOUR_CC, config.FPS,
                                                      (config.RESOLUTION_WIDTH, config.RESOLUTION_HEIGHT))
             # Reset action for stop
@@ -254,27 +258,29 @@ class MainForm(QMainWindow):
     def action_browse_photo_triggered():
         open_file(config.DIR_PHOTO)
 
-    def self_driving(self):
-        if self.driving:
-            self.driving = False
+    def action_self_driving_triggered(self):
+        if self.task_self_driving:
+            self.task_self_driving = False
+            # Reset action for start
             self.driving_action.setText(asset.STRING_START_SELF_DRIVING)
             self.driving_action.setIcon(QIcon(asset.ICON_SELF_DRIVING_OFF))
         else:
-            self.driving = True
+            self.task_self_driving = True
+            # Reset action for stop
             self.driving_action.setText(asset.STRING_STOP_SELF_DRIVING)
             self.driving_action.setIcon(QIcon(asset.ICON_SELF_DRIVING_ON))
 
-    def load_model(self):
+    def action_load_model_triggered(self):
         file_name = QFileDialog.getOpenFileName(self, 'Load Model', './', 'Model (*.ckpt);;All Files (*.*)')
 
-    def save_model(self):
+    def action_save_model_triggered(self):
         file_name = QFileDialog.getSaveFileName(self, 'Save Model', './', 'Model (*.ckpt);;All Files (*.*)')
 
     @staticmethod
-    def browse_home_page():
+    def action_browse_home_page_triggered():
         webbrowser.open(config.URL_HOME_PAGE)
 
-    def usage(self):
+    def action_usage_triggered(self):
         qbox = QMessageBox(self)
         qbox.setWindowTitle('Usage')
         qbox.setText(asset.STRING_USAGE)
@@ -304,33 +310,40 @@ class MainForm(QMainWindow):
         try:
             stream = request.urlopen(config.URL_STREAM, timeout=1)
             self.label_stream_status.setText('Stream: Online')
-            data = bytes()
+            buffer = bytes()
             while self.keep_streamer:
-                data += stream.read(1024)
-                a = data.find(b'\xff\xd8')
-                b = data.find(b'\xff\xd9')
+                buffer += stream.read(1024)
+                a = buffer.find(b'\xff\xd8')
+                b = buffer.find(b'\xff\xd9')
+                image_raw = buffer[a:b + 2]
+                buffer = buffer[b + 2:]
                 if a != -1 and b != -1:
-                    jpg = data[a:b + 2]
-                    data = data[b + 2:]
-                    self.pixmap.loadFromData(jpg)
+                    if self.action_view.isChecked():
+                        image_rgb = cv2.imdecode(np.fromstring(image_raw, np.uint8), cv2.IMREAD_COLOR)
+                        image_gray = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
+                        ret, image_binary = cv2.threshold(image_gray, 100, 255, cv2.THRESH_BINARY_INV)
+                        qimg = QImage(image_binary.data, image_binary.shape[1], image_binary.shape[0], QImage.Format_Grayscale8)
+                        self.pixmap = QPixmap.fromImage(qimg)
+                    else:
+                        self.pixmap.loadFromData(image_raw)
                     self.monitor.setPixmap(self.pixmap.scaled(self.monitor.width(), self.monitor.height(), Qt.KeepAspectRatio))
                     # Screen shot
                     if self.task_screen_shot:
                         file_name = config.DIR_PHOTO + datetime.utcnow().strftime('%Y%m%d%H%M%S%f') + '.png'
-                        Image.open(io.BytesIO(jpg)).save(file_name)
+                        Image.open(io.BytesIO(image_raw)).save(file_name)
                         self.label_op_status.setText('The photo has been saved at ' + file_name)
                         self.task_screen_shot = False
                     # Video Record
                     self.lock_video_record.acquire()
                     if self.task_video_record:
-                        frame = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+                        frame = cv2.imdecode(np.fromstring(image_raw, dtype=np.uint8), cv2.IMREAD_COLOR)
                         self.task_video_record.write(frame)
                     self.lock_video_record.release()
                     # Data Record
                     if self.task_data_record and self.direction_stack[-1] != self.Direction.STOP:
                         file_name = config.DIR_DATA + datetime.utcnow().strftime('%Y%m%d%H%M%S%f') \
                                     + '-' + str(self.direction_stack[-1].value) + '.png'
-                        Image.open(io.BytesIO(jpg)).save(file_name)
+                        Image.open(io.BytesIO(image_raw)).save(file_name)
         except error.URLError as e:
             self.logger.error('Stream: %s' % e.reason)
             self.label_stream_status.setText('Stream: %s' % e.reason)

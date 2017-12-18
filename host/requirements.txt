@@ -1,2 +1,3 @@
-opencv-python
+pyqt5
+Pillow
 tensorflow-gpu
