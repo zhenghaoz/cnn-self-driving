@@ -1,19 +1,17 @@
-from datetime import datetime
-import io
 import os
 import platform
 import socket
 import subprocess
 import sys
 import webbrowser
+from datetime import datetime
 from enum import Enum
 from logging import Logger
-from threading import Thread, Lock
-from urllib import request, error
+from threading import Thread
+from urllib import error
 
 import cv2
-import numpy as np
-from PIL import Image
+import tensorflow as tf
 from PyQt5 import Qt
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -21,6 +19,8 @@ from PyQt5.QtWidgets import *
 
 import asset
 import config
+import network
+import utils
 
 
 class MainForm(QMainWindow):
@@ -41,22 +41,35 @@ class MainForm(QMainWindow):
 
         self.logger = Logger('Host', 30)
 
+        self.model = network.PilotNet()
+        self.sess = tf.Session()
+        self.sess.run(tf.global_variables_initializer())
+
         # Initialize tasks
         self.task_screen_shot = False
-        self.task_video_record = None
+        self.task_video_record = False
         self.task_data_record = False
-        self.lock_video_record = Lock()
         self.task_self_driving = False
+        self.task_video_record_stream = None
 
         # Initialize direction stack
         self.direction_stack = [self.Direction.STOP]
 
+        # Initialize command map
+        self.cmd_map = {
+            self.Direction.STOP: self.CMD_STOP,
+            self.Direction.FORWARD: self.CMD_FORWARD,
+            self.Direction.BACKWARD: self.CMD_BACKWARD,
+            self.Direction.TURN_LEFT: self.CMD_TURN_LEFT,
+            self.Direction.TURN_RIGHT: self.CMD_TURN_RIGHT
+        }
+
         # Geometries
         monitor_x = 0
-        monitor_y = 96
-        monitor_height = 760
-        monitor_width = 1000
-        status_height = 32
+        monitor_y = 60
+        monitor_height = 512
+        monitor_width = 720
+        status_height = 20
         form_height = monitor_y + monitor_height + status_height
         form_width = monitor_width
 
@@ -82,6 +95,7 @@ class MainForm(QMainWindow):
         browse_photos_action = QAction('Browse Photos', self)
         browse_photos_action.triggered.connect(self.action_browse_photo_triggered)
         self.driving_action = QAction(QIcon(asset.ICON_SELF_DRIVING_OFF), asset.STRING_START_SELF_DRIVING, self)
+        self.driving_action.setShortcut('Up')
         self.driving_action.triggered.connect(self.action_self_driving_triggered)
         train_action = QAction(QIcon(asset.ICON_START_TRAIN), 'Start Training', self)
         load_action = QAction(QIcon(asset.ICON_OPEN), 'Load Model', self)
@@ -90,7 +104,9 @@ class MainForm(QMainWindow):
         save_action = QAction(QIcon(asset.ICON_SAVE), 'Save Model', self)
         save_action.setShortcut('Ctrl+S')
         save_action.triggered.connect(self.action_save_model_triggered)
-        self.action_view = QAction('View Neural Network Input', self, checkable=True)
+        self.action_view_gray = QAction('Gray Scale', self, checkable=True)
+        self.action_view_direction = QAction('Direction Prediction', self, checkable=True, checked=True)
+        self.action_view_scope = QAction("Scope", self, checkable=True, checked=True)
         browse_home_page_action = QAction(QIcon(asset.ICON_GITHUB), 'Home Page', self)
         browse_home_page_action.triggered.connect(self.action_browse_home_page_triggered)
         show_usage_action = QAction('Usage', self)
@@ -113,7 +129,9 @@ class MainForm(QMainWindow):
         menu_learn.addAction(load_action)
         menu_learn.addAction(save_action)
         menu_view = menu.addMenu('View')
-        menu_view.addAction(self.action_view)
+        menu_view.addAction(self.action_view_gray)
+        menu_view.addAction(self.action_view_direction)
+        menu_view.addAction(self.action_view_scope)
         menu_about = menu.addMenu('About')
         menu_about.addAction(browse_home_page_action)
         menu_about.addSeparator()
@@ -165,7 +183,7 @@ class MainForm(QMainWindow):
         try:
             address = ('192.168.1.1', 2001)
             self.socket_control = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket_control.settimeout(1)
+            self.socket_control.settimeout(config.CONNECTION_TIME_OUT)
             self.socket_control.connect(address)
             self.label_ctl_status.setText('Control: Online')
         except socket.timeout as e:
@@ -177,16 +195,14 @@ class MainForm(QMainWindow):
     def keyPressEvent(self, event: QKeyEvent):
         if event.key() == Qt.Key_W:
             self.direction_stack.append(self.Direction.FORWARD)
-            self.socket_control.send(self.CMD_FORWARD)
         elif event.key() == Qt.Key_S:
             self.direction_stack.append(self.Direction.BACKWARD)
-            self.socket_control.send(self.CMD_BACKWARD)
         elif event.key() == Qt.Key_A:
             self.direction_stack.append(self.Direction.TURN_LEFT)
-            self.socket_control.send(self.CMD_TURN_LEFT)
         elif event.key() == Qt.Key_D:
             self.direction_stack.append(self.Direction.TURN_RIGHT)
-            self.socket_control.send(self.CMD_TURN_RIGHT)
+        if event.key() in [Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D]:
+            self.socket_control.send(self.cmd_map[self.direction_stack[-1]])
 
     def keyReleaseEvent(self, event: QKeyEvent):
         if event.key() == Qt.Key_W \
@@ -194,16 +210,7 @@ class MainForm(QMainWindow):
                 or event.key() == Qt.Key_A \
                 or event.key() == Qt.Key_D:
             self.direction_stack.pop()
-            if self.direction_stack[-1] == self.Direction.STOP:
-                self.socket_control.send(self.CMD_STOP)
-            elif self.direction_stack[-1] == self.Direction.TURN_LEFT:
-                self.socket_control.send(self.CMD_TURN_LEFT)
-            elif self.direction_stack[-1] == self.Direction.TURN_RIGHT:
-                self.socket_control.send(self.CMD_TURN_RIGHT)
-            elif self.direction_stack[-1] == self.Direction.FORWARD:
-                self.socket_control.send(self.CMD_FORWARD)
-            elif self.direction_stack[-1] == self.Direction.BACKWARD:
-                self.socket_control.send(self.CMD_BACKWARD)
+            self.socket_control.send(self.cmd_map[self.direction_stack[-1]])
 
     def closeEvent(self, event: QCloseEvent):
         self.keep_streamer = False
@@ -216,23 +223,22 @@ class MainForm(QMainWindow):
         self.task_screen_shot = True
 
     def action_video_record_triggered(self):
-        self.lock_video_record.acquire()
         if self.task_video_record:
             # Release video writer
-            self.task_video_record.release()
-            self.task_video_record = None
+            self.task_video_record_stream.release()
+            self.task_video_record = False
             # Reset action for start
             self.actiion_video_record.setText(asset.STRING_START_VIDEO_RECORD)
             self.actiion_video_record.setIcon(QIcon(asset.ICON_START_VIDEO_RECORD))
         else:
             # Create video writer
-            file_name = config.DIR_VIDEO + datetime.utcnow().strftime('%Y%m%d%H%M%S%f') + 'avi'
-            self.task_video_record = cv2.VideoWriter(file_name, config.FOUR_CC, config.FPS,
-                                                     (config.RESOLUTION_WIDTH, config.RESOLUTION_HEIGHT))
+            file_name = config.DIR_VIDEO + datetime.utcnow().strftime('%Y%m%d%H%M%S%f') + '.avi'
+            self.task_video_record_stream = cv2.VideoWriter(file_name, config.FOUR_CC, config.FPS,
+                                                            (config.RESOLUTION_WIDTH, config.RESOLUTION_HEIGHT))
+            self.task_video_record = True
             # Reset action for stop
             self.actiion_video_record.setText(asset.STRING_STOP_VIDEO_RECORD)
             self.actiion_video_record.setIcon(QIcon(asset.ICON_STOP_VIDEO_RECORD))
-        self.lock_video_record.release()
 
     def action_data_record_triggered(self):
         if self.task_data_record:
@@ -261,11 +267,15 @@ class MainForm(QMainWindow):
     def action_self_driving_triggered(self):
         if self.task_self_driving:
             self.task_self_driving = False
+            self.direction_stack.pop()
+            self.socket_control.send(self.cmd_map[self.direction_stack[-1]])
             # Reset action for start
             self.driving_action.setText(asset.STRING_START_SELF_DRIVING)
             self.driving_action.setIcon(QIcon(asset.ICON_SELF_DRIVING_OFF))
         else:
             self.task_self_driving = True
+            self.direction_stack.append(self.Direction.FORWARD)
+            self.socket_control.send(self.cmd_map[self.direction_stack[-1]])
             # Reset action for stop
             self.driving_action.setText(asset.STRING_STOP_SELF_DRIVING)
             self.driving_action.setIcon(QIcon(asset.ICON_SELF_DRIVING_ON))
@@ -308,42 +318,39 @@ class MainForm(QMainWindow):
 
     def streamer(self):
         try:
-            stream = request.urlopen(config.URL_STREAM, timeout=1)
+            stream = cv2.VideoCapture(config.URL_STREAM)
             self.label_stream_status.setText('Stream: Online')
-            buffer = bytes()
             while self.keep_streamer:
-                buffer += stream.read(1024)
-                a = buffer.find(b'\xff\xd8')
-                b = buffer.find(b'\xff\xd9')
-                image_raw = buffer[a:b + 2]
-                buffer = buffer[b + 2:]
-                if a != -1 and b != -1:
-                    if self.action_view.isChecked():
-                        image_rgb = cv2.imdecode(np.fromstring(image_raw, np.uint8), cv2.IMREAD_COLOR)
-                        image_gray = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
-                        ret, image_binary = cv2.threshold(image_gray, 100, 255, cv2.THRESH_BINARY_INV)
-                        qimg = QImage(image_binary.data, image_binary.shape[1], image_binary.shape[0], QImage.Format_Grayscale8)
-                        self.pixmap = QPixmap.fromImage(qimg)
-                    else:
-                        self.pixmap.loadFromData(image_raw)
-                    self.monitor.setPixmap(self.pixmap.scaled(self.monitor.width(), self.monitor.height(), Qt.KeepAspectRatio))
-                    # Screen shot
-                    if self.task_screen_shot:
-                        file_name = config.DIR_PHOTO + datetime.utcnow().strftime('%Y%m%d%H%M%S%f') + '.png'
-                        Image.open(io.BytesIO(image_raw)).save(file_name)
-                        self.label_op_status.setText('The photo has been saved at ' + file_name)
-                        self.task_screen_shot = False
-                    # Video Record
-                    self.lock_video_record.acquire()
-                    if self.task_video_record:
-                        frame = cv2.imdecode(np.fromstring(image_raw, dtype=np.uint8), cv2.IMREAD_COLOR)
-                        self.task_video_record.write(frame)
-                    self.lock_video_record.release()
-                    # Data Record
-                    if self.task_data_record and self.direction_stack[-1] != self.Direction.STOP:
-                        file_name = config.DIR_DATA + datetime.utcnow().strftime('%Y%m%d%H%M%S%f') \
-                                    + '-' + str(self.direction_stack[-1].value) + '.png'
-                        Image.open(io.BytesIO(image_raw)).save(file_name)
+                ret, frame = stream.read()
+                frame, direction = utils.frame_processor(frame, self.model, self.sess,
+                                                         dir_pred=self.action_view_direction.isChecked(),
+                                                         scope=self.action_view_scope.isChecked())
+                # Display frame
+                if self.action_view_gray.isChecked():
+                    frame_display = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+                    qimg = QImage(frame_display.data, frame_display.shape[1], frame_display.shape[0], QImage.Format_Grayscale8)
+                else:
+                    frame_display = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    qimg = QImage(frame_display.data, frame_display.shape[1], frame_display.shape[0], QImage.Format_RGB888)
+                pixmap = QPixmap.fromImage(qimg)
+                self.monitor.setPixmap(pixmap.scaled(self.monitor.width(), self.monitor.height(), Qt.KeepAspectRatio))
+                # Screen shot
+                if self.task_screen_shot:
+                    file_name = config.DIR_PHOTO + datetime.utcnow().strftime('%Y%m%d%H%M%S%f') + '.png'
+                    cv2.imwrite(file_name, frame)
+                    self.label_op_status.setText('The photo has been saved at ' + file_name)
+                    self.task_screen_shot = False
+                # Video Record
+                if self.task_video_record:
+                    self.task_video_record_stream.write(frame)
+                # Data Record
+                if self.task_data_record and self.direction_stack[-1] != self.Direction.STOP:
+                    file_name = config.DIR_DATA + datetime.utcnow().strftime('%Y%m%d%H%M%S%f') \
+                                + '-' + str(self.direction_stack[-1].value) + '.png'
+                    cv2.imwrite(file_name, frame)
+                # Self driving
+                if self.task_self_driving:
+                    pass
         except error.URLError as e:
             self.logger.error('Stream: %s' % e.reason)
             self.label_stream_status.setText('Stream: %s' % e.reason)

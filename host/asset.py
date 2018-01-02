@@ -30,4 +30,5 @@ W   -   Forward
 S   -   Backward
 A   -   Turn Left
 D   -   Turn Right
+Up  -   Self-driving Switch
 '''
