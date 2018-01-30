@@ -6,16 +6,23 @@ import numpy as np
 class FrameFactory:
 
     # Internal configuration
+
     DIRECTION_BAR_WIDTH = 20
     DIRECTION_BAR_HEIGHT = 100
     DIRECTION_BAR_MARGIN = 10
     DIRECTION_BAR_PADDING = 20
     DIRECTION_ICONS = [asset.ICON_LEFT_ARROW, asset.ICON_UP_ARROW, asset.ICON_RIGHT_ARROW]
 
+    SENSOR_SIZE = 50
+    SENSOR_PADDING = 20
+    SENSOR_MARGIN = 20
+    SENSOR_ICONS = [asset.ICON_INFRARED_SENSOR_LEFT, asset.ICON_INFRARED_SENSOR_RIGHT]
+
     def __init__(self, height, width, channel, sample_height, sample_width):
         self.frame = np.zeros([height, width, channel])
         self.mask = np.zeros([height, width, 1])
         self.direction = [0,0,0]
+        self.sensor = [False, False]
         self.height = height
         self.width = width
         self.channel = channel
@@ -51,6 +58,14 @@ class FrameFactory:
         self.direction = direction
 
     def render(self):
+        # Draw sensor
+        sensor_top = self.SENSOR_PADDING
+        sensor_bottom = sensor_top + self.SENSOR_SIZE
+        for i in range(len(self.sensor)):
+            sensor_right = self.width-self.SENSOR_PADDING-(self.SENSOR_MARGIN+self.SENSOR_SIZE)*i
+            sensor_left = sensor_right-self.SENSOR_SIZE
+            icon = cv2.imread(self.SENSOR_ICONS[-1-i])
+            self.frame = self.draw_image(self.frame, icon, sensor_left, sensor_top, sensor_right, sensor_bottom)
         # Draw directions
         bar_overlay = self.frame.copy()
         icon_top = self.DIRECTION_BAR_PADDING
@@ -62,15 +77,16 @@ class FrameFactory:
             bar_right = bar_left+self.DIRECTION_BAR_WIDTH
             bar_top = icon_bottom + self.DIRECTION_BAR_PADDING
             bar_overlay = cv2.rectangle(bar_overlay, (bar_left,bar_top), (bar_right,bar_botton), (255,255,255), -1)
-            # Draw icon
-            icon = cv2.imread(self.DIRECTION_ICONS[i])
-            bar_overlay = self.draw_image(bar_overlay, icon, bar_left, icon_top, bar_right, icon_bottom)
         self.frame = cv2.addWeighted(self.frame, 0.5, bar_overlay, 0.5, 0)
         for i in range(len(self.direction)):
+            # Draw foreground rectangle
             bar_left = self.DIRECTION_BAR_PADDING+(self.DIRECTION_BAR_WIDTH+self.DIRECTION_BAR_MARGIN)*i
             bar_right = bar_left+self.DIRECTION_BAR_WIDTH
             bar_top = bar_botton-int(self.DIRECTION_BAR_HEIGHT*self.direction[i])
             self.frame = cv2.rectangle(self.frame, (bar_left,bar_top), (bar_right,bar_botton), (255,255,255), -1)
+            # Draw icon
+            icon = cv2.imread(self.DIRECTION_ICONS[i])
+            self.frame = self.draw_image(self.frame, icon, bar_left, icon_top, bar_right, icon_bottom)
         # Draw sample area
         self.frame = cv2.rectangle(self.frame, (self.sample_left,self.sample_top), (self.sample_right-1,self.sample_bottom-1), (255,255,255))
         # Draw salient map

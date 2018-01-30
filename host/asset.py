@@ -16,6 +16,8 @@ ICON_CAMERA             = config.DIR_ASSETS + 'camera.png'
 ICON_LEFT_ARROW         = config.DIR_ASSETS + 'left_arrow.png'
 ICON_RIGHT_ARROW        = config.DIR_ASSETS + 'right_arrow.png'
 ICON_UP_ARROW           = config.DIR_ASSETS + 'up_arrow.png'
+ICON_INFRARED_SENSOR_LEFT = config.DIR_ASSETS + 'infrared_sensor_left.png'
+ICON_INFRARED_SENSOR_RIGHT = config.DIR_ASSETS + 'infrared_sensor_right.png'
 
 # Images
 IMAGE_OFFLINE = config.DIR_ASSETS + 'offline.jpg'
