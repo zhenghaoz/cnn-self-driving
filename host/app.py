@@ -20,7 +20,9 @@ from PyQt5.QtWidgets import *
 import asset
 import config
 import network
-import utils
+import numpy as np
+from frame import FrameFactory
+from network import PilotNet
 
 
 class MainForm(QMainWindow):
@@ -44,7 +46,11 @@ class MainForm(QMainWindow):
         self.model = network.PilotNet()
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
-
+        self.ff = FrameFactory(config.FRAME_HEIGHT,
+                               config.FRAME_WIDTH,
+                               config.FRAME_CHANNEL,
+                               PilotNet.IMG_HEIGHT,
+                               PilotNet.IMG_WIDTH)
         # Initialize tasks
         self.task_screen_shot = False
         self.task_video_record = False
@@ -318,14 +324,17 @@ class MainForm(QMainWindow):
 
     def streamer(self):
         try:
-            stream = cv2.VideoCapture(config.URL_STREAM)
+            # stream = cv2.VideoCapture(config.URL_STREAM)
+            stream = cv2.VideoCapture(0)
             self.label_stream_status.setText('Stream: Online')
             while self.keep_streamer:
                 ret, frame = stream.read()
-                frame, direction = utils.frame_processor(frame, self.model, self.sess,
-                                                         dir_pred=self.action_view_direction.isChecked(),
-                                                         scope=self.action_view_scope.isChecked())
-                # Display frame
+                self.ff.set_frame(frame)
+                clip = self.ff.sample()
+                d, mask = self.model.predict(self.sess, clip)
+                self.ff.set_salient(mask)
+                self.ff.set_direction(d)
+                frame = self.ff.render()
                 if self.action_view_gray.isChecked():
                     frame_display = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
                     qimg = QImage(frame_display.data, frame_display.shape[1], frame_display.shape[0], QImage.Format_Grayscale8)
