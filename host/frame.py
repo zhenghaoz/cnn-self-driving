@@ -127,7 +127,7 @@ class FrameFactory:
         img = cv2.resize(img, (resize_width, resize_height))
         # Put img to src
         rows, cols, _ = img.shape
-        roi = img[0:rows, 0:cols]
+        roi = src[top:bottom, left:right]
         img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         ret, mask = cv2.threshold(img_gray, threshold, 255, cv2.THRESH_BINARY)
         mask_inv = cv2.bitwise_not(mask)

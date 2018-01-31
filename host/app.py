@@ -324,8 +324,7 @@ class MainForm(QMainWindow):
 
     def streamer(self):
         try:
-            # stream = cv2.VideoCapture(config.URL_STREAM)
-            stream = cv2.VideoCapture(0)
+            stream = cv2.VideoCapture(config.URL_STREAM)
             self.label_stream_status.setText('Stream: Online')
             while self.keep_streamer:
                 ret, frame = stream.read()
