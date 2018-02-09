@@ -140,7 +140,7 @@ if __name__ == '__main__':
     stream = cv2.VideoCapture(config.URL_STREAM)
     while True:
         _, raw = stream.read()
-        cv2.imshow('RewardDetector', detector.detect(raw[-100:, :])[1])
+        cv2.imshow('RewardDetector', detector.detect(raw[-50:, :])[1])
         # Press Q to quit
-        if cv2.waitKey(0) & 0xFF == ord('q'):
+        if cv2.waitKey(1) & 0xFF == ord('q'):
             break
