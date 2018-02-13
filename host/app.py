@@ -4,6 +4,7 @@ import socket
 import subprocess
 import sys
 import webbrowser
+import csv
 from datetime import datetime
 from enum import Enum
 from logging import Logger
@@ -12,6 +13,7 @@ from urllib import error
 
 import cv2
 import tensorflow as tf
+import numpy as np
 from PyQt5 import Qt
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -20,8 +22,8 @@ from PyQt5.QtWidgets import *
 import asset
 import config
 import network
-import numpy as np
-from frame import FrameFactory
+from reward import RewardDetector
+from display import DisplayEngine
 from network import PilotNet
 
 
@@ -29,12 +31,11 @@ class MainForm(QMainWindow):
 
     # Enums
 
-    class Direction(Enum):
-        STOP = 0
-        FORWARD = 1
-        BACKWARD = 2
-        TURN_LEFT = 3
-        TURN_RIGHT = 4
+    STOP = -1
+    TURN_LEFT = 0
+    TURN_RIGHT = 1
+    FORWARD = 2
+    BACKWARD = 3
 
     # Start up
 
@@ -43,31 +44,30 @@ class MainForm(QMainWindow):
 
         self.logger = Logger('Host', 30)
 
-        self.model = network.PilotNet()
-        self.sess = tf.Session()
-        self.sess.run(tf.global_variables_initializer())
-        self.ff = FrameFactory(config.FRAME_HEIGHT,
-                               config.FRAME_WIDTH,
-                               config.FRAME_CHANNEL,
-                               PilotNet.IMG_HEIGHT,
-                               PilotNet.IMG_WIDTH)
+        self.engine = DisplayEngine(config.FRAME_HEIGHT,
+                                    config.FRAME_WIDTH,
+                                    config.FRAME_CHANNEL,
+                                    PilotNet.INPUT_HEIGHT,
+                                    PilotNet.INPUT_WIDTH,
+                                    100)
         # Initialize tasks
         self.task_screen_shot = False
         self.task_video_record = False
-        self.task_data_record = False
         self.task_self_driving = False
         self.task_video_record_stream = None
+        self.task_video_actions = None
+        self.task_video_file_name = None
 
         # Initialize direction stack
-        self.direction_stack = [self.Direction.STOP]
+        self.direction_stack = [self.STOP]
 
         # Initialize command map
         self.cmd_map = {
-            self.Direction.STOP: self.CMD_STOP,
-            self.Direction.FORWARD: self.CMD_FORWARD,
-            self.Direction.BACKWARD: self.CMD_BACKWARD,
-            self.Direction.TURN_LEFT: self.CMD_TURN_LEFT,
-            self.Direction.TURN_RIGHT: self.CMD_TURN_RIGHT
+            self.STOP: self.CMD_STOP,
+            self.FORWARD: self.CMD_FORWARD,
+            self.BACKWARD: self.CMD_BACKWARD,
+            self.TURN_LEFT: self.CMD_TURN_LEFT,
+            self.TURN_RIGHT: self.CMD_TURN_RIGHT
         }
 
         # Geometries
@@ -88,16 +88,12 @@ class MainForm(QMainWindow):
         self.monitor.setPixmap(self.pixmap.scaled(self.monitor.width(), self.monitor.height(), Qt.KeepAspectRatio))
 
         # Setup actions
-        take_photo_action = QAction(QIcon(asset.ICON_CAMERA), 'Take Photo', self)
+        take_photo_action = QAction(QIcon(asset.ICON_CAMERA), 'Screen Shot', self)
         take_photo_action.triggered.connect(self.action_screen_shot_triggered)
-        self.actiion_video_record = QAction(QIcon(asset.ICON_START_VIDEO_RECORD), asset.STRING_START_VIDEO_RECORD, self)
-        self.actiion_video_record.triggered.connect(self.action_video_record_triggered)
-        self.action_data_record = QAction(QIcon(asset.ICON_START_DATA_RECORD), asset.STRING_START_DATA_RECORD, self)
-        self.action_data_record.triggered.connect(self.action_data_record_triggered)
+        self.action_video_record = QAction(QIcon(asset.ICON_START_VIDEO_RECORD), asset.STRING_START_VIDEO_RECORD, self)
+        self.action_video_record.triggered.connect(self.action_video_record_triggered)
         browse_videos_action = QAction('Browse Videos', self)
         browse_videos_action.triggered.connect(self.action_browse_video_triggered)
-        browse_datum_action = QAction('Browse Datum', self)
-        browse_datum_action.triggered.connect(self.action_browse_data_triggered)
         browse_photos_action = QAction('Browse Photos', self)
         browse_photos_action.triggered.connect(self.action_browse_photo_triggered)
         self.driving_action = QAction(QIcon(asset.ICON_SELF_DRIVING_OFF), asset.STRING_START_SELF_DRIVING, self)
@@ -110,9 +106,10 @@ class MainForm(QMainWindow):
         save_action = QAction(QIcon(asset.ICON_SAVE), 'Save Model', self)
         save_action.setShortcut('Ctrl+S')
         save_action.triggered.connect(self.action_save_model_triggered)
-        self.action_view_gray = QAction('Gray Scale', self, checkable=True)
-        self.action_view_direction = QAction('Direction Prediction', self, checkable=True, checked=True)
-        self.action_view_scope = QAction("Scope", self, checkable=True, checked=True)
+        self.action_view_watch = QAction("Display Watch Region", self, checkable=True, checked=True)
+        self.action_view_detect = QAction('Display Detect Region', self, checkable=True, checked=True)
+        self.action_view_direction = QAction('Display Directions', self, checkable=True, checked=True)
+        self.action_view_salient = QAction('Display Salient Map', self, checkable=True, checked=True)
         browse_home_page_action = QAction(QIcon(asset.ICON_GITHUB), 'Home Page', self)
         browse_home_page_action.triggered.connect(self.action_browse_home_page_triggered)
         show_usage_action = QAction('Usage', self)
@@ -122,12 +119,10 @@ class MainForm(QMainWindow):
         menu = self.menuBar()
         menu_record = menu.addMenu('Record')
         menu_record.addAction(take_photo_action)
-        menu_record.addAction(self.actiion_video_record)
-        menu_record.addAction(self.action_data_record)
+        menu_record.addAction(self.action_video_record)
         menu_record.addSeparator()
         menu_record.addAction(browse_photos_action)
         menu_record.addAction(browse_videos_action)
-        menu_record.addAction(browse_datum_action)
         menu_learn = menu.addMenu('Intelligence')
         menu_learn.addAction(self.driving_action)
         menu_learn.addAction(train_action)
@@ -135,9 +130,10 @@ class MainForm(QMainWindow):
         menu_learn.addAction(load_action)
         menu_learn.addAction(save_action)
         menu_view = menu.addMenu('View')
-        menu_view.addAction(self.action_view_gray)
+        menu_view.addAction(self.action_view_watch)
+        menu_view.addAction(self.action_view_detect)
         menu_view.addAction(self.action_view_direction)
-        menu_view.addAction(self.action_view_scope)
+        menu_view.addAction(self.action_view_salient)
         menu_about = menu.addMenu('About')
         menu_about.addAction(browse_home_page_action)
         menu_about.addSeparator()
@@ -147,8 +143,7 @@ class MainForm(QMainWindow):
         tool_bar_record = self.addToolBar('Record')
         tool_bar_record.setMovable(False)
         tool_bar_record.addAction(take_photo_action)
-        tool_bar_record.addAction(self.actiion_video_record)
-        tool_bar_record.addAction(self.action_data_record)
+        tool_bar_record.addAction(self.action_video_record)
         tool_bar_learn = self.addToolBar('Intelligence')
         tool_bar_learn.setMovable(False)
         tool_bar_learn.addAction(self.driving_action)
@@ -200,13 +195,13 @@ class MainForm(QMainWindow):
 
     def keyPressEvent(self, event: QKeyEvent):
         if event.key() == Qt.Key_W:
-            self.direction_stack.append(self.Direction.FORWARD)
+            self.direction_stack.append(self.FORWARD)
         elif event.key() == Qt.Key_S:
-            self.direction_stack.append(self.Direction.BACKWARD)
+            self.direction_stack.append(self.BACKWARD)
         elif event.key() == Qt.Key_A:
-            self.direction_stack.append(self.Direction.TURN_LEFT)
+            self.direction_stack.append(self.TURN_LEFT)
         elif event.key() == Qt.Key_D:
-            self.direction_stack.append(self.Direction.TURN_RIGHT)
+            self.direction_stack.append(self.TURN_RIGHT)
         if event.key() in [Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D]:
             self.socket_control.send(self.cmd_map[self.direction_stack[-1]])
 
@@ -230,33 +225,25 @@ class MainForm(QMainWindow):
 
     def action_video_record_triggered(self):
         if self.task_video_record:
-            # Release video writer
             self.task_video_record_stream.release()
+            print(self.task_video_actions)
+            with open(self.task_video_file_name + '.csv', 'w') as csv_file:
+                wr = csv.writer(csv_file, delimiter=',')
+                wr.writerows(self.task_video_actions)
+            self.task_video_actions = None
             self.task_video_record = False
             # Reset action for start
-            self.actiion_video_record.setText(asset.STRING_START_VIDEO_RECORD)
-            self.actiion_video_record.setIcon(QIcon(asset.ICON_START_VIDEO_RECORD))
+            self.action_video_record.setText(asset.STRING_START_VIDEO_RECORD)
+            self.action_video_record.setIcon(QIcon(asset.ICON_START_VIDEO_RECORD))
         else:
-            # Create video writer
-            file_name = config.DIR_VIDEO + datetime.utcnow().strftime('%Y%m%d%H%M%S%f') + '.avi'
-            self.task_video_record_stream = cv2.VideoWriter(file_name, config.FOUR_CC, config.FPS,
-                                                            (config.RESOLUTION_WIDTH, config.RESOLUTION_HEIGHT))
             self.task_video_record = True
+            self.task_video_actions = []
+            self.task_video_file_name = config.DIR_VIDEO + datetime.utcnow().strftime('%Y%m%d%H%M%S%f')
+            self.task_video_record_stream = cv2.VideoWriter(self.task_video_file_name + '.mkv', config.FOUR_CC, config.FPS,
+                                                            (config.RESOLUTION_WIDTH, config.RESOLUTION_HEIGHT))
             # Reset action for stop
-            self.actiion_video_record.setText(asset.STRING_STOP_VIDEO_RECORD)
-            self.actiion_video_record.setIcon(QIcon(asset.ICON_STOP_VIDEO_RECORD))
-
-    def action_data_record_triggered(self):
-        if self.task_data_record:
-            self.task_data_record = False
-            # Reset action for start
-            self.action_data_record.setText(asset.STRING_START_DATA_RECORD)
-            self.action_data_record.setIcon(QIcon(asset.ICON_START_DATA_RECORD))
-        else:
-            self.task_data_record = True
-            # Reset action for stop
-            self.action_data_record.setText(asset.STRING_STOP_DATA_RECORD)
-            self.action_data_record.setIcon(QIcon(asset.ICON_STOP_DATA_RECORD))
+            self.action_video_record.setText(asset.STRING_STOP_VIDEO_RECORD)
+            self.action_video_record.setIcon(QIcon(asset.ICON_STOP_VIDEO_RECORD))
 
     @staticmethod
     def action_browse_video_triggered():
@@ -323,47 +310,54 @@ class MainForm(QMainWindow):
     # Threads
 
     def streamer(self):
+        detector = RewardDetector()
         try:
             stream = cv2.VideoCapture(config.URL_STREAM)
             self.label_stream_status.setText('Stream: Online')
             while self.keep_streamer:
-                ret, frame = stream.read()
-                self.ff.set_frame(frame)
-                clip = self.ff.sample()
-                d, mask = self.model.predict(self.sess, clip)
-                self.ff.set_salient(mask)
-                self.ff.set_direction(d)
-                frame = self.ff.render()
-                if self.action_view_gray.isChecked():
-                    frame_display = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
-                    qimg = QImage(frame_display.data, frame_display.shape[1], frame_display.shape[0], QImage.Format_Grayscale8)
-                else:
-                    frame_display = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    qimg = QImage(frame_display.data, frame_display.shape[1], frame_display.shape[0], QImage.Format_RGB888)
+                ret, raw = stream.read()
+                self.engine.set_frame(raw)
+                watch = self.engine.watch_sample()
+                # detect = self.engine.detect_sample()
+                # _, detected = detector.detect(detect)
+                # self.engine.set_detected(detected)
+                frame = self.engine.render(draw_salient=self.action_view_salient.isChecked(),
+                                           draw_detected=self.action_view_detect.isChecked(),
+                                           draw_direction=self.action_view_direction.isChecked(),
+                                           draw_watch=self.action_view_watch.isChecked())
+                frame_display = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                qimg = QImage(frame_display.data, frame_display.shape[1], frame_display.shape[0], QImage.Format_RGB888)
                 pixmap = QPixmap.fromImage(qimg)
                 self.monitor.setPixmap(pixmap.scaled(self.monitor.width(), self.monitor.height(), Qt.KeepAspectRatio))
                 # Screen shot
                 if self.task_screen_shot:
                     file_name = config.DIR_PHOTO + datetime.utcnow().strftime('%Y%m%d%H%M%S%f') + '.png'
-                    cv2.imwrite(file_name, frame)
-                    self.label_op_status.setText('The photo has been saved at ' + file_name)
+                    cv2.imwrite(file_name, raw)
+                    self.label_op_status.setText('Save image at ' + file_name)
                     self.task_screen_shot = False
                 # Video Record
-                if self.task_video_record:
-                    self.task_video_record_stream.write(frame)
-                # Data Record
-                if self.task_data_record and self.direction_stack[-1] != self.Direction.STOP:
-                    file_name = config.DIR_DATA + datetime.utcnow().strftime('%Y%m%d%H%M%S%f') \
-                                + '-' + str(self.direction_stack[-1].value) + '.png'
-                    cv2.imwrite(file_name, frame)
+                if self.task_video_record and self.direction_stack[-1] != self.STOP:
+                    self.task_video_record_stream.write(raw)
+                    self.task_video_actions.append((len(self.task_video_actions), self.direction_stack[-1]))
                 # Self driving
-                if self.task_self_driving:
-                    pass
+                # if self.task_self_driving:
+                #     pass
         except error.URLError as e:
             self.logger.error('Stream: %s' % e.reason)
             self.label_stream_status.setText('Stream: %s' % e.reason)
         finally:
             return
+
+
+def select_white(image):
+    converted = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
+    # black color mask
+    lower = np.uint8([  0, 200,   0])
+    upper = np.uint8([255, 255, 255])
+    white_mask = cv2.inRange(converted, lower, upper)
+    # combine the mask
+    masked = cv2.bitwise_and(image, image, mask=white_mask)
+    return masked
 
 
 def open_file(path):
