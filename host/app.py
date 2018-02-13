@@ -194,6 +194,9 @@ class MainForm(QMainWindow):
     # Internal Events
 
     def keyPressEvent(self, event: QKeyEvent):
+        # Ignore auto repeat
+        if event.isAutoRepeat():
+            return
         if event.key() == Qt.Key_W:
             self.direction_stack.append(self.FORWARD)
         elif event.key() == Qt.Key_S:
@@ -206,6 +209,9 @@ class MainForm(QMainWindow):
             self.socket_control.send(self.cmd_map[self.direction_stack[-1]])
 
     def keyReleaseEvent(self, event: QKeyEvent):
+        # Ignore auto repeat
+        if event.isAutoRepeat():
+            return
         if event.key() == Qt.Key_W \
                 or event.key() == Qt.Key_S \
                 or event.key() == Qt.Key_A \
