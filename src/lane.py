@@ -3,7 +3,7 @@ import config
 import numpy as np
 
 
-class RewardDetector:
+class LaneDetector:
 
     def __init__(self, upper_threshold: int=200,
                  lower_threshold: int=100,
@@ -136,7 +136,7 @@ class RewardDetector:
 
 # Test routine
 if __name__ == '__main__':
-    detector = RewardDetector()
+    detector = LaneDetector()
     stream = cv2.VideoCapture(config.URL_STREAM)
     while True:
         _, raw = stream.read()

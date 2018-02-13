@@ -1,7 +1,6 @@
 import cv2
 
 DIR_ASSETS = 'assets/'
-DIR_DATA = 'data/'
 DIR_VIDEO = 'video/'
 DIR_PHOTO = 'photo/'
 

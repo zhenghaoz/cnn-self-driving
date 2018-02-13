@@ -22,7 +22,7 @@ from PyQt5.QtWidgets import *
 import asset
 import config
 import network
-from reward import RewardDetector
+from lane import LaneDetector
 from display import DisplayEngine
 from network import PilotNet
 
@@ -256,10 +256,6 @@ class MainForm(QMainWindow):
         open_file(config.DIR_VIDEO)
 
     @staticmethod
-    def action_browse_data_triggered():
-        open_file(config.DIR_DATA)
-
-    @staticmethod
     def action_browse_photo_triggered():
         open_file(config.DIR_PHOTO)
 
@@ -316,7 +312,7 @@ class MainForm(QMainWindow):
     # Threads
 
     def streamer(self):
-        detector = RewardDetector()
+        detector = LaneDetector()
         try:
             stream = cv2.VideoCapture(config.URL_STREAM)
             self.label_stream_status.setText('Stream: Online')

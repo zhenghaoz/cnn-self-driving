@@ -2,7 +2,7 @@ import cv2
 import asset
 import config
 import numpy as np
-from reward import RewardDetector
+from lane import LaneDetector
 
 
 class DisplayEngine:
@@ -194,7 +194,7 @@ if __name__ == '__main__':
     engine = DisplayEngine(config.FRAME_HEIGHT,
                            config.FRAME_WIDTH,
                            config.FRAME_CHANNEL, 20, 100, 50)
-    detector = RewardDetector()
+    detector = LaneDetector()
     stream = cv2.VideoCapture(config.URL_STREAM)
     while True:
         _, raw = stream.read()
