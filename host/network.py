@@ -1,4 +1,5 @@
 import cv2
+import math
 import numpy as np
 import tensorflow as tf
 
@@ -12,11 +13,15 @@ class PilotNet:
     INPUT_CHANNEL = 3
 
     def __init__(self, learning_rate=0.1):
+        """
+        Create a PilotNet
+        :param learning_rate: learning rate for Adam optimizer
+        """
         # Placeholders
-        self.input_images = tf.placeholder(tf.float32, [None, self.INPUT_HEIGHT, self.INPUT_WIDTH, self.INPUT_CHANNEL])
-        self.input_directions = tf.placeholder(tf.int32, [None])
-        # Architecture
-        conv1 = tf.layers.conv2d(self.input_images, 24, 5, 2, activation=tf.nn.relu)
+        self.input_image = tf.placeholder(tf.float32, [None, self.INPUT_HEIGHT, self.INPUT_WIDTH, self.INPUT_CHANNEL])
+        self.input_label = tf.placeholder(tf.int64, [None])
+        # Convolution neural network
+        conv1 = tf.layers.conv2d(self.input_image, 24, 5, 2, activation=tf.nn.relu)
         conv2 = tf.layers.conv2d(conv1, 36, 5, 2, activation=tf.nn.relu)
         conv3 = tf.layers.conv2d(conv2, 48, 5, 2, activation=tf.nn.relu)
         conv4 = tf.layers.conv2d(conv3, 64, 3, activation=tf.nn.relu)
@@ -24,10 +29,11 @@ class PilotNet:
         flat = tf.layers.flatten(conv5)
         fc1 = tf.layers.dense(flat, 1164, activation=tf.nn.relu)
         fc2 = tf.layers.dense(fc1, 100, activation=tf.nn.relu)
-        fc3 = tf.layers.dense(fc2, 50, activation=tf.nn.relu)
-        self.output_logits = tf.layers.dense(fc3, 3)
-        self.output_softmax = tf.nn.softmax(self.output_logits)
-        # Visualization
+        logits = tf.layers.dense(fc2, 3)
+        self.output_softmax = tf.nn.softmax(logits)
+        self.output_label = tf.argmax(self.output_softmax, 1)
+        self.output_acc = tf.reduce_mean(tf.cast(tf.equal(self.output_label, self.input_label), tf.float32))
+        # Visual backpropagation
         feature_map5 = tf.reduce_mean(conv5, 3, keep_dims=True)
         feature_map5_scaled = tf.layers.conv2d_transpose(feature_map5, 1, 3, kernel_initializer=tf.ones_initializer(), trainable=False)
         feature_map4 = tf.reduce_mean(conv4, 3, keep_dims=True) * feature_map5_scaled
@@ -38,25 +44,56 @@ class PilotNet:
         feature_map2_scaled = tf.layers.conv2d_transpose(feature_map2, 1, 5, 2, kernel_initializer=tf.ones_initializer(), trainable=False)
         feature_map1 = tf.reduce_mean(conv1, 3, keep_dims=True) * feature_map2_scaled
         self.output_masks = tf.layers.conv2d_transpose(feature_map1, 1, 5, 2, kernel_initializer=tf.ones_initializer(), trainable=False)
-        # Cost
-        self.loss = tf.losses.softmax_cross_entropy(tf.one_hot(self.input_directions, 3), self.output_logits)
+        # Loss and train step
+        self.loss = tf.losses.softmax_cross_entropy(tf.one_hot(self.input_label, 3), logits)
         optimizer = tf.train.AdadeltaOptimizer(learning_rate)
         self.train_step = optimizer.minimize(self.loss)
         # Create session
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
 
-    def fit(self, image: np.ndarray, label: np.ndarray, eppch=30):
-        for i in range(eppch):
-            loss, _ = self.sess.run([self.loss, self.train_step], {
-                self.input_images: image,
-                self.input_directions: label
-            })
+    def fit(self, train_image: np.ndarray, train_label: np.ndarray,
+            val_image: np.ndarray, val_label: np.ndarray,
+            epoch=30, batch_size=100, print_iters=100, iters=1000) -> dict:
+        """
+        Fit model.
+        :param train_image: images of training data set
+        :param train_label: labels of training data set
+        :param val_image: images of validation data set
+        :param val_label: labels of validation data set
+        :param epoch: training epoch
+        :param batch_size: training batch size
+        :param print_iters: print cost value every n iters
+        :param iters: training iterations in each epoch
+        :return: training history
+        """
+        history = {
+            'loss': [],
+            'train_acc': [],
+            'val_acc': []
+        }
+        for i in range(epoch):
+            for iter in range(iters):
+                # Generate batch
+                batch_index = np.random.choice(len(train_image), batch_size)
+                batch_image = train_image[batch_index]
+                batch_label = train_label[batch_index]
+                # Train model
+                loss, _ = self.sess.run([self.loss, self.train_step], {
+                    self.input_image: batch_image,
+                    self.input_label: batch_label
+                })
+                history['loss'].append(loss)
+                # Print loss
+                if (iter + 1) % print_iters == 0:
+                    print('iter %d/%d, loss = %f' % (iter+1, iters, loss))
             # Calculate accuracy
-            softmax = self.predict(image)[0]
-            action = np.argmax(softmax, 0)
-            acc = np.mean(action == label)
-            print("training loss: %f, training accuracy: %f" % (loss, acc))
+            train_acc = self.check_accuracy(train_image, train_label)
+            val_acc = self.check_accuracy(val_image, val_label)
+            history['train_acc'].append(train_acc)
+            history['val_acc'].append(val_acc)
+            print('epoch %d/%d, train acc = %f, val acc = %f' % (i+1, epoch, train_acc, val_acc))
+        return history
 
     def predict(self, image: np.ndarray) -> tuple:
         """
@@ -65,31 +102,62 @@ class PilotNet:
         :param image: road image
         :return: predicted direction, salient map
         """
-        directions, masks = self.sess.run([self.output_softmax, self.output_masks], {self.input_images: image})
+        directions, masks = self.sess.run([self.output_softmax, self.output_masks], {self.input_image: image})
         return directions, masks
+
+    def check_accuracy(self, image: np.ndarray, label: np.ndarray, batch_size=100) -> float:
+        """
+        Check accuracy of data set (image, label).
+        :param image: images of data set
+        :param label: labels of data set
+        :return: accuracy on data set
+        """
+        num_total = len(image)
+        num_batch = int(math.ceil(num_total / batch_size))
+        batch_accs = []
+        batch_weight = []
+        for i in range(num_batch):
+            batch_images = image[i*batch_size:(i+1)*batch_size]
+            batch_labels = label[i*batch_size:(i+1)*batch_size]
+            batch_acc = self.sess.run(self.output_acc, {
+                self.input_image: batch_images,
+                self.input_label: batch_labels
+            })
+            batch_accs.append(batch_acc)
+            batch_weight.append(len(batch_images))
+        return np.average(batch_accs, weights=batch_weight)
 
     def save(self, filename):
         """
         Save parameters to files
         :param filename: file name
         """
-        pass
+        saver = tf.train.Saver()
+        saver.save(self.sess, filename)
 
     def load(self, filename):
         """
         Load parameters from files
         :param filename: file name
         """
-        pass
+        saver = tf.train.Saver()
+        saver.restore(self.sess, filename)
 
 
 if __name__ == "__main__":
     # Load 'data'
-    L = cv2.imread('data/L.png')
-    R = cv2.imread('data/R.png')
-    U = cv2.imread('data/U.png')
-    X = np.stack([L, R, U], 0)
-    y = np.asarray([0, 1, 2])
+    L = cv2.imread('test/L.png')
+    R = cv2.imread('test/R.png')
+    U = cv2.imread('test/U.png')
+    train_image = np.stack([L, R, U] * 100, 0)
+    train_label = np.asarray([0, 1, 2] * 100)
+    val_image = np.stack([L, R, U] * 10, 0)
+    val_label = np.asarray([0, 1, 2] * 10)
+    # Create model
     net = PilotNet()
-    net.fit(X, y)
-
+    # Train model
+    net.fit(train_image, train_label, val_image, val_label, epoch=1, iters=100, print_iters=10)
+    # Save model
+    net.save('test/test.ckpt')
+    # Load model
+    net.load('test/test.ckpt')
