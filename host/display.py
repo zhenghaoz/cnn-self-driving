@@ -42,10 +42,10 @@ class DisplayEngine:
         self.watch_right = self.width
         self.watch_top = self.height - int(self.width / self.watch_width * self.watch_height)
         self.watch_bottom = self.height
-        self.mask = np.zeros([watch_height, watch_width])
+        self.mask = None
         # Detect region
         self.detect_height = detect_height
-        self.detected = np.zeros([detect_height, width])
+        self.detected = None
 
     def set_frame(self, image: np.ndarray):
         """
@@ -59,7 +59,9 @@ class DisplayEngine:
         # Reset frame
         self.frame_img = image
         # Clear mask
-        self.mask = np.zeros([self.watch_height, self.watch_width])
+        self.mask = None
+        # Clear detected
+        self.detected = None
 
     def set_salient(self, mask: np.ndarray):
         """
@@ -101,7 +103,7 @@ class DisplayEngine:
         """
         output_img = self.frame_img.copy()
         # Draw detected area
-        if draw_detected:
+        if draw_detected and self.detected is not None:
             output_img[-self.detect_height:,:] = self.detected
         # Draw directions
         if draw_direction:
@@ -129,7 +131,7 @@ class DisplayEngine:
         if draw_watch:
             output_img = cv2.rectangle(output_img, (self.watch_left, self.watch_top), (self.watch_right - 1, self.watch_bottom - 1), (255, 255, 255))
         # Draw salient map
-        if draw_salient:
+        if draw_salient and self.mask is not None:
             min_weight = np.min(self.mask)
             max_weight = np.max(self.mask)
             if np.abs(max_weight-min_weight) > 0:
