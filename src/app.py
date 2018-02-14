@@ -59,15 +59,16 @@ class MainForm(QMainWindow):
         self.task_video_file_name = None
 
         # Initialize direction stack
-        self.direction_stack = [self.STOP]
+        self.action_stack = [Qt.Key_Space]
+        self.key_status = {}
 
         # Initialize command map
         self.cmd_map = {
-            self.STOP: self.CMD_STOP,
-            self.FORWARD: self.CMD_FORWARD,
-            self.BACKWARD: self.CMD_BACKWARD,
-            self.TURN_LEFT: self.CMD_TURN_LEFT,
-            self.TURN_RIGHT: self.CMD_TURN_RIGHT
+            Qt.Key_Space: self.CMD_STOP,
+            Qt.Key_W: self.CMD_FORWARD,
+            Qt.Key_S: self.CMD_BACKWARD,
+            Qt.Key_A: self.CMD_TURN_LEFT,
+            Qt.Key_D: self.CMD_TURN_RIGHT
         }
 
         # Geometries
@@ -197,27 +198,27 @@ class MainForm(QMainWindow):
         # Ignore auto repeat
         if event.isAutoRepeat():
             return
-        if event.key() == Qt.Key_W:
-            self.direction_stack.append(self.FORWARD)
-        elif event.key() == Qt.Key_S:
-            self.direction_stack.append(self.BACKWARD)
-        elif event.key() == Qt.Key_A:
-            self.direction_stack.append(self.TURN_LEFT)
-        elif event.key() == Qt.Key_D:
-            self.direction_stack.append(self.TURN_RIGHT)
-        if event.key() in [Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D]:
-            self.socket_control.send(self.cmd_map[self.direction_stack[-1]])
+        if event.key() in self.cmd_map.keys():
+            # Save key status
+            self.key_status[event.key()] = True
+            # Append action
+            self.action_stack.append(event.key())
+            # Send action
+            self.socket_control.send(self.cmd_map[self.action_stack[-1]])
 
     def keyReleaseEvent(self, event: QKeyEvent):
         # Ignore auto repeat
         if event.isAutoRepeat():
             return
-        if event.key() == Qt.Key_W \
-                or event.key() == Qt.Key_S \
-                or event.key() == Qt.Key_A \
-                or event.key() == Qt.Key_D:
-            self.direction_stack.pop()
-            self.socket_control.send(self.cmd_map[self.direction_stack[-1]])
+        # Recover previous action
+        if event.key() in self.cmd_map.keys():
+            # Save key status
+            self.key_status[event.key()] = False
+            # Clear stack
+            while len(self.action_stack) > 1 \
+                    and self.key_status[self.action_stack[-1]] is False:
+                self.action_stack.pop()
+            self.socket_control.send(self.cmd_map[self.action_stack[-1]])
 
     def closeEvent(self, event: QCloseEvent):
         self.keep_streamer = False
@@ -236,6 +237,7 @@ class MainForm(QMainWindow):
             with open(self.task_video_file_name + '.csv', 'w') as csv_file:
                 wr = csv.writer(csv_file, delimiter=',')
                 wr.writerows(self.task_video_actions)
+            self.label_op_status.setText('Save video at ' + self.task_video_file_name + '.mkv')
             self.task_video_actions = None
             self.task_video_record = False
             # Reset action for start
@@ -262,15 +264,15 @@ class MainForm(QMainWindow):
     def action_self_driving_triggered(self):
         if self.task_self_driving:
             self.task_self_driving = False
-            self.direction_stack.pop()
-            self.socket_control.send(self.cmd_map[self.direction_stack[-1]])
+            self.action_stack.pop()
+            self.socket_control.send(self.cmd_map[self.action_stack[-1]])
             # Reset action for start
             self.driving_action.setText(asset.STRING_START_SELF_DRIVING)
             self.driving_action.setIcon(QIcon(asset.ICON_SELF_DRIVING_OFF))
         else:
             self.task_self_driving = True
-            self.direction_stack.append(self.Direction.FORWARD)
-            self.socket_control.send(self.cmd_map[self.direction_stack[-1]])
+            self.action_stack.append(self.Direction.FORWARD)
+            self.socket_control.send(self.cmd_map[self.action_stack[-1]])
             # Reset action for stop
             self.driving_action.setText(asset.STRING_STOP_SELF_DRIVING)
             self.driving_action.setIcon(QIcon(asset.ICON_SELF_DRIVING_ON))
@@ -338,9 +340,9 @@ class MainForm(QMainWindow):
                     self.label_op_status.setText('Save image at ' + file_name)
                     self.task_screen_shot = False
                 # Video Record
-                if self.task_video_record and self.direction_stack[-1] != self.STOP:
+                if self.task_video_record and self.action_stack[-1] != self.STOP:
                     self.task_video_record_stream.write(raw)
-                    self.task_video_actions.append((len(self.task_video_actions), self.direction_stack[-1]))
+                    self.task_video_actions.append((len(self.task_video_actions), self.action_stack[-1]))
                 # Self driving
                 # if self.task_self_driving:
                 #     pass
