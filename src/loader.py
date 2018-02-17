@@ -14,6 +14,8 @@ from sklearn.preprocessing import LabelEncoder
 class DataLoader:
 
     def __init__(self, path, test_size=0.3, mirror=False):
+        # Save old work directory
+        owd = os.getcwd()
         # Extract file list
         file_list = []
         os.chdir(path)
@@ -71,6 +73,8 @@ class DataLoader:
         self.train_labels = labels[train_index]
         self.test_images = images[test_index]
         self.test_labels = labels[test_index]
+        # Restore work directory
+        os.chdir(owd)
 
 
 if __name__ == '__main__':
