@@ -9,7 +9,7 @@ class PilotNet:
     # Model configuration
 
     INPUT_HEIGHT = 62
-    INPUT_WIDTH = 197
+    INPUT_WIDTH = 198
     INPUT_CHANNEL = 3
 
     def __init__(self, learning_rate=0.1):
@@ -149,10 +149,10 @@ if __name__ == "__main__":
     L = cv2.imread('test/L.png')
     R = cv2.imread('test/R.png')
     U = cv2.imread('test/U.png')
-    train_image = np.stack([L, R, U] * 100, 0)
-    train_label = np.asarray([0, 1, 2] * 100)
-    val_image = np.stack([L, R, U] * 10, 0)
-    val_label = np.asarray([0, 1, 2] * 10)
+    train_image = np.stack([L, R, U] * 10, 0)
+    train_label = np.asarray([0, 1, 2] * 10)
+    val_image = np.stack([L, R, U] * 5, 0)
+    val_label = np.asarray([0, 1, 2] * 5)
     # Create model
     net = PilotNet()
     # Train model
@@ -161,3 +161,8 @@ if __name__ == "__main__":
     net.save('test/test.ckpt')
     # Load model
     net.load('test/test.ckpt')
+    # Predict
+    pred, mask = net.predict(np.asarray([L]))
+    cv2.imshow('%s' % np.argmax(pred), mask[0])
+    cv2.waitKey()
+
