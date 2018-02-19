@@ -31,7 +31,7 @@ class PilotNet:
         fc1 = tf.layers.dense(flat, 1164, activation=tf.nn.relu)
         dropout = tf.layers.dropout(fc1, 0.5)
         fc2 = tf.layers.dense(dropout, 100, activation=tf.nn.relu)
-        logits = tf.layers.dense(fc2, 2)
+        logits = tf.layers.dense(fc2, 3)
         self.output_softmax = tf.nn.softmax(logits)
         self.output_label = tf.argmax(self.output_softmax, 1)
         self.output_acc = tf.reduce_mean(tf.cast(tf.equal(self.output_label, self.input_label), tf.float32))
@@ -47,7 +47,7 @@ class PilotNet:
         feature_map1 = tf.reduce_mean(conv1, 3, keep_dims=True) * feature_map2_scaled
         self.output_masks = tf.layers.conv2d_transpose(feature_map1, 1, 5, 2, kernel_initializer=tf.ones_initializer(), trainable=False)
         # Loss and train step
-        self.loss = tf.losses.softmax_cross_entropy(tf.one_hot(self.input_label, 2), logits)
+        self.loss = tf.losses.softmax_cross_entropy(tf.one_hot(self.input_label, 3), logits)
         optimizer = tf.train.AdamOptimizer(learning_rate)
         self.train_step = optimizer.minimize(self.loss)
         # Create session
@@ -164,10 +164,11 @@ if __name__ == "__main__":
     # Load 'data'
     L = cv2.imread('test/L.png')
     R = cv2.imread('test/R.png')
-    train_image = np.stack([L, R] * 10)
-    train_label = np.asarray([0, 1] * 10)
-    val_image = np.stack([L, R] * 5)
-    val_label = np.asarray([0, 1] * 5)
+    U = cv2.imread('test/U.png')
+    train_image = np.stack([L, R, U] * 10)
+    train_label = np.asarray([0, 1, 2] * 10)
+    val_image = np.stack([L, R, U] * 5)
+    val_label = np.asarray([0, 1, 2] * 5)
     # Create model
     net = PilotNet(1e-6)
     # Train model
