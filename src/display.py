@@ -2,7 +2,6 @@ import cv2
 import asset
 import config
 import numpy as np
-from lane import LaneDetector
 
 
 class DisplayEngine:
@@ -20,7 +19,7 @@ class DisplayEngine:
     ]
 
     def __init__(self, height: int, width: int, channel: int,
-                 watch_height: int, watch_width: int, detect_height: int):
+                 watch_height: int, watch_width: int):
         """
         Create a display engine.
         :param height: the height of the frame
@@ -30,11 +29,12 @@ class DisplayEngine:
         :param watch_width: the width of the watch region
         :param detect_height: the height of the detect region
         """
-        self.frame_img = np.zeros([height, width, channel])
+        self.frame = np.zeros([height, width, channel])
         self.direction = [0,0,0]
         self.height = height
         self.width = width
         self.channel = channel
+        self.image = None
         # Watch region
         self.watch_height = watch_height
         self.watch_width = watch_width
@@ -43,68 +43,43 @@ class DisplayEngine:
         self.watch_top = self.height - int(self.width / self.watch_width * self.watch_height)
         self.watch_bottom = self.height
         self.mask = None
-        # Detect region
-        self.detect_height = detect_height
-        self.detected = None
 
     def set_frame(self, image: np.ndarray):
         """
         Set current video frame
         :param image: current video frame
         """
-        height, width, channel = image.shape
-        assert height == self.height
-        assert width == self.width
-        assert channel == self.channel
+        # Reset image
+        self.image = image.copy()
         # Reset frame
-        self.frame_img = image
+        self.frame = cv2.resize(image, (self.width, self.height))
         # Clear mask
         self.mask = None
-        # Clear detected
-        self.detected = None
 
     def set_salient(self, mask: np.ndarray):
         """
         Feed the salient map of current sampled region back
         :param mask: current salient map
         """
-        height, width = mask.shape
-        assert height == self.watch_height
-        assert width == self.watch_width
-        self.mask = mask
-
-    def set_detected(self, detected: np.ndarray):
-        """
-        Feed the detection result back.
-        :param detected: detection result
-        """
-        height, width, _ = detected.shape
-        assert height == self.detect_height
-        assert width == self.width
-        self.detected = detected
+        self.mask = cv2.resize(mask, (self.watch_width, self.watch_height))
 
     def set_direction(self, direction: list):
         """
         Feed probabilities of three directions back.
         :param direction: probabilities
         """
-        assert len(direction) == 3
-        assert np.sum(direction) == 1
-        self.direction = direction
+        # assert len(direction) == 3
+        self.direction = np.asarray([direction[0], direction[2], direction[1]])
 
-    def render(self, draw_salient: bool=True, draw_direction=True, draw_watch=True, draw_detected=True):
+    def render(self, draw_salient: bool=True, draw_direction=True, draw_watch=True):
         """
         Render a frame for display.
         :param draw_salient: whether draw the salient map
         :param draw_direction: whether draw direction probabilities
         :param draw_watch: whether draw the watch region
-        :param draw_detected: whether draw the detect region
         :return: the rendered image
         """
-        output_img = self.frame_img.copy()
-        # Draw detected area
-        if draw_detected and self.detected is not None:
-            output_img[-self.detect_height:,:] = self.detected
+        output_img = self.frame.copy()
         # Draw directions
         if draw_direction:
             bar_overlay = output_img.copy()
@@ -148,15 +123,13 @@ class DisplayEngine:
         Sample for neural network.
         :return: the sampled image
         """
-        clip = self.frame_img[self.watch_top:self.watch_bottom, self.watch_left:self.watch_right, :]
+        height, width, _ = self.image.shape
+        watch_left = 0
+        watch_right = width
+        watch_top = height - int(width / self.watch_width * self.watch_height)
+        watch_bottom = height
+        clip = self.image[watch_top:watch_bottom, watch_left:watch_right, :]
         return cv2.resize(clip, (self.watch_width, self.watch_height))
-
-    def detect_sample(self) -> np.ndarray:
-        """
-        Sample for reward detector.
-        :return: the sampled image
-        """
-        return self.frame_img[-self.detect_height:,:].copy()
 
     @staticmethod
     def draw_image(src: np.ndarray, img: np.ndarray,
@@ -191,10 +164,9 @@ class DisplayEngine:
 
 # Test routine
 if __name__ == '__main__':
-    engine = DisplayEngine(config.FRAME_HEIGHT,
-                           config.FRAME_WIDTH,
-                           config.FRAME_CHANNEL, 20, 100, 50)
-    detector = LaneDetector()
+    engine = DisplayEngine(config.MONITOR_HEIGHT,
+                           config.MONITOR_WIDTH,
+                           config.FRAME_CHANNEL, 20, 100)
     stream = cv2.VideoCapture(config.URL_STREAM)
     while True:
         _, raw = stream.read()
@@ -202,9 +174,6 @@ if __name__ == '__main__':
         engine.set_direction([0.2,0.5,0.3])
         watch = engine.watch_sample()
         engine.set_salient(np.random.randn(watch.shape[0], watch.shape[1]))
-        detect = engine.detect_sample()
-        _, detcted = detector.detect(detect)
-        engine.set_detected(detcted)
         cv2.imshow('DisplayEngine', engine.render())
         # Press Q to quit
         if cv2.waitKey(1) & 0xFF == ord('q'):
