@@ -1,6 +1,7 @@
 import glob
 import os
 import os.path
+import config
 
 import cv2
 import numpy as np
@@ -19,29 +20,18 @@ class DataLoader:
         # Extract file list
         file_list = []
         os.chdir(path)
-        for mkv_file in glob.glob("*.mkv"):
-            file, _ = mkv_file.split('.')
-            csv_file = file + '.csv'
-            if os.path.isfile(csv_file):
-                file_list.append(file)
+        for data_file in glob.glob("*.npz" ):
+            file_list.append(data_file)
         # Load data
         images = []
-        labels = np.array([])
-        for file in file_list:
-            csv_file = file + '.csv'
-            mkv_file = file + '.mkv'
-            print('Loading data from (%s, %s)' % (mkv_file, csv_file))
-            # Read csv
-            csv = pd.read_csv(csv_file)
-            labels = np.append(labels, csv['Action'])
-            # Read video
-            video = cv2.VideoCapture(mkv_file)
-            ret = True
-            while ret:
-                ret, frame = video.read()
-                if ret:
-                    images.append(frame)
-        images = np.asarray(images)
+        labels = []
+        for data_file in file_list:
+            print('Loading %s' % data_file)
+            data = np.load(data_file)
+            images.append(data['image'])
+            labels.append(data['label'])
+        images = np.concatenate(images)
+        labels = np.concatenate(labels)
         assert np.shape(labels)[0] == np.shape(images)[0]
         # Data augmentation
         if mirror:
