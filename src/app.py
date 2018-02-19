@@ -20,7 +20,6 @@ from PyQt5.QtWidgets import *
 import asset
 import config
 from display import DisplayEngine
-from lane import LaneDetector
 from network import PilotNet
 
 
@@ -43,10 +42,9 @@ class MainForm(QMainWindow):
 
         self.engine = DisplayEngine(config.MONITOR_HEIGHT,
                                     config.MONITOR_WIDTH,
-                                    config.FRAME_CHANNEL,
+                                    config.MONITOR_CHANNEL,
                                     PilotNet.INPUT_HEIGHT,
-                                    PilotNet.INPUT_WIDTH,
-                                    0.2)
+                                    PilotNet.INPUT_WIDTH)
 
         self.net = PilotNet()
         self.net.load('model/driver.ckpt')
@@ -91,9 +89,9 @@ class MainForm(QMainWindow):
         # Setup actions
         take_photo_action = QAction(QIcon(asset.ICON_CAMERA), 'Screen Shot', self)
         take_photo_action.triggered.connect(self.action_screen_shot_triggered)
-        self.action_video_record = QAction(QIcon(asset.ICON_START_VIDEO_RECORD), asset.STRING_START_VIDEO_RECORD, self)
+        self.action_video_record = QAction(QIcon(asset.ICON_START_RECORD), asset.STRING_START_RECORD, self)
         self.action_video_record.triggered.connect(self.action_video_record_triggered)
-        browse_videos_action = QAction('Browse Videos', self)
+        browse_videos_action = QAction('Browse Data', self)
         browse_videos_action.triggered.connect(self.action_browse_video_triggered)
         browse_photos_action = QAction('Browse Photos', self)
         browse_photos_action.triggered.connect(self.action_browse_photo_triggered)
@@ -105,7 +103,6 @@ class MainForm(QMainWindow):
         save_action.setShortcut('Ctrl+S')
         save_action.triggered.connect(self.action_save_model_triggered)
         self.action_view_watch = QAction("Display Watch Region", self, checkable=True, checked=True)
-        self.action_view_detect = QAction('Display Detect Region', self, checkable=True, checked=True)
         self.action_view_direction = QAction('Display Directions', self, checkable=True, checked=True)
         self.action_view_salient = QAction('Display Salient Map', self, checkable=True, checked=True)
         browse_home_page_action = QAction(QIcon(asset.ICON_GITHUB), 'Home Page', self)
@@ -128,7 +125,6 @@ class MainForm(QMainWindow):
         menu_learn.addAction(save_action)
         menu_view = menu.addMenu('View')
         menu_view.addAction(self.action_view_watch)
-        menu_view.addAction(self.action_view_detect)
         menu_view.addAction(self.action_view_direction)
         menu_view.addAction(self.action_view_salient)
         menu_about = menu.addMenu('About')
@@ -237,26 +233,26 @@ class MainForm(QMainWindow):
         if self.task_video_record:
             self.task_video_record = False
             # Save data
-            file_name = config.DIR_VIDEO + datetime.utcnow().strftime('%Y%m%d%H%M%S%f')
+            file_name = config.DIR_DATA + datetime.utcnow().strftime('%Y%m%d%H%M%S%f')
             np.savez_compressed(file_name, image=self.task_video_frames, label=self.task_video_actions)
             self.label_op_status.setText('Save data at ' + file_name + '.npz')
             # Reset data
             self.task_video_frames = None
             self.task_video_actions = None
             # Reset action for start
-            self.action_video_record.setText(asset.STRING_START_VIDEO_RECORD)
-            self.action_video_record.setIcon(QIcon(asset.ICON_START_VIDEO_RECORD))
+            self.action_video_record.setText(asset.STRING_START_RECORD)
+            self.action_video_record.setIcon(QIcon(asset.ICON_START_RECORD))
         else:
             self.task_video_actions = []
             self.task_video_frames = []
             self.task_video_record = True
             # Reset action for stop
-            self.action_video_record.setText(asset.STRING_STOP_VIDEO_RECORD)
-            self.action_video_record.setIcon(QIcon(asset.ICON_STOP_VIDEO_RECORD))
+            self.action_video_record.setText(asset.STRING_STOP_RECORD)
+            self.action_video_record.setIcon(QIcon(asset.ICON_STOP_RECORD))
 
     @staticmethod
     def action_browse_video_triggered():
-        open_file_xdg(config.DIR_VIDEO)
+        open_file_xdg(config.DIR_DATA)
 
     @staticmethod
     def action_browse_photo_triggered():
@@ -299,7 +295,6 @@ class MainForm(QMainWindow):
     # Threads
 
     def streamer(self):
-        detector = LaneDetector()
         try:
             stream = cv2.VideoCapture(config.URL_STREAM)
             self.label_stream_status.setText('Stream: Online')
@@ -309,15 +304,11 @@ class MainForm(QMainWindow):
                     print('Panic')
                 self.engine.set_frame(raw)
                 watch = self.engine.watch_sample()
-                # detect = self.engine.detect_sample()
-                # detected, _ = detector.detect(detect)
-                # self.engine.set_detected(detected)
                 # Predict actions
                 actions, salients = self.net.predict(np.asarray([watch]))
                 self.engine.set_direction(actions[0])
                 self.engine.set_salient(salients[0,:,:,0])
                 frame = self.engine.render(draw_salient=self.action_view_salient.isChecked(),
-                                           draw_detected=self.action_view_detect.isChecked(),
                                            draw_direction=self.action_view_direction.isChecked(),
                                            draw_watch=self.action_view_watch.isChecked())
                 frame_display = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -336,11 +327,10 @@ class MainForm(QMainWindow):
                     self.task_video_actions.append(self.action_stack[-1])
                 # Self driving
                 if self.task_self_driving:
-                    if self.self_driving_clock % 2 == 0:
-                        keys = [Qt.Key_A, Qt.Key_D, Qt.Key_W]
-                        action = np.argmax(actions[0])
-                        self.socket_control.send(self.cmd_map[keys[action]])
-                        self.self_driving_clock = (self.self_driving_clock + 1) % 30
+                    keys = [Qt.Key_A, Qt.Key_D, Qt.Key_W]
+                    action = np.argmax(actions[0])
+                    self.socket_control.send(self.cmd_map[keys[action]])
+                    self.self_driving_clock = (self.self_driving_clock + 1) % 30
         except error.URLError as e:
             self.logger.error('Stream: %s' % e.reason)
             self.label_stream_status.setText('Stream: %s' % e.reason)
