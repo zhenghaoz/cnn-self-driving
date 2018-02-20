@@ -53,7 +53,7 @@ class DataLoader:
         # Label encode
         encoder = LabelEncoder()
         labels = encoder.fit_transform(labels)
-        # Train test split
+        # Train misc split
         num_total = labels.shape[0]
         num_test = int(num_total * test_size)
         index = np.random.permutation(num_total)

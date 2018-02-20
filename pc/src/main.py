@@ -1,8 +1,10 @@
 import os
 import platform
 import socket
+import struct
 import subprocess
 import sys
+import time
 import webbrowser
 from datetime import datetime
 from logging import Logger
@@ -56,6 +58,9 @@ class MainForm(QMainWindow):
         self.task_video_actions = None
         self.task_video_file_name = None
         self.self_driving_clock = 0
+
+        self.left_sensor = 0
+        self.right_sensor = 0
 
         # Initialize direction stack
         self.action_stack = [Qt.Key_Space]
@@ -166,21 +171,27 @@ class MainForm(QMainWindow):
                   (screen_size.height() / 2) - (frame_size.height() / 2))
         self.show()
 
-        # Start streamer
-        self.keep_streamer = True
-        self.thread_streamer = Thread(target=self.streamer)
-        self.thread_streamer.start()
-
         # Connect agent
         try:
-            address = ('192.168.1.1', 2001)
-            self.socket_control = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket_control.settimeout(config.CONNECTION_TIME_OUT)
-            self.socket_control.connect(address)
+            control_addr = ('192.168.1.1', 2001)
+            sensor_addr = ('192.168.1.1', 2002)
+            self.control_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.control_socket.settimeout(config.CONNECTION_TIME_OUT)
+            self.control_socket.connect(control_addr)
+            self.sensor_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sensor_socket.connect(sensor_addr)
             self.label_ctl_status.setText('Control: Online')
         except socket.timeout as e:
             self.logger.error('Control: timed out')
             self.label_ctl_status.setText('Control: timed out')
+
+        # Start streamer
+        self.keep_streamer = True
+        self.thread_streamer = Thread(target=self.streamer)
+        self.thread_streamer.start()
+        self.keep_sensor = True
+        self.thread_sensor = Thread(target=self.sensor)
+        self.thread_sensor.start()
 
     # Internal Events
 
@@ -198,7 +209,7 @@ class MainForm(QMainWindow):
             # Append action
             self.action_stack.append(event.key())
             # Send action
-            self.socket_control.send(self.cmd_map[self.action_stack[-1]])
+            self.control_socket.send(self.cmd_map[self.action_stack[-1]])
 
     def keyReleaseEvent(self, event: QKeyEvent):
         # Ignore auto repeat
@@ -206,7 +217,7 @@ class MainForm(QMainWindow):
             return
         if event.key() == Qt.Key_Up:
             self.task_self_driving = False
-            self.socket_control.send(self.cmd_map[Qt.Key_Space])
+            self.control_socket.send(self.cmd_map[Qt.Key_Space])
             return
         # Recover previous action
         if event.key() in self.cmd_map.keys():
@@ -216,12 +227,15 @@ class MainForm(QMainWindow):
             while len(self.action_stack) > 1 \
                     and self.key_status[self.action_stack[-1]] is False:
                 self.action_stack.pop()
-            self.socket_control.send(self.cmd_map[self.action_stack[-1]])
+            self.control_socket.send(self.cmd_map[self.action_stack[-1]])
 
     def closeEvent(self, event: QCloseEvent):
         self.keep_streamer = False
-        self.socket_control.close()
+        self.keep_sensor = False
+        self.control_socket.close()
+        self.sensor_socket.close()
         self.thread_streamer.join()
+        self.thread_sensor.join()
 
     # Action Events
 
@@ -293,6 +307,16 @@ class MainForm(QMainWindow):
 
     # Threads
 
+    def sensor(self):
+        while self.keep_sensor:
+            # Read sensor status
+            self.sensor_socket.send(b'\xff')
+            data = self.sensor_socket.recv(1)
+            data = struct.unpack('B', data)[0]
+            self.left_sensor = (data & 0x1) >> 0
+            self.right_sensor = (data & 0x2) >> 1
+            time.sleep(0.02)
+
     def streamer(self):
         try:
             stream = cv2.VideoCapture(config.URL_STREAM)
@@ -307,6 +331,7 @@ class MainForm(QMainWindow):
                 actions, salients = self.net.predict(np.asarray([watch]))
                 self.engine.set_direction(actions[0])
                 self.engine.set_salient(salients[0,:,:,0])
+                self.engine.set_sensor(self.left_sensor == 1, self.right_sensor == 1)
                 frame = self.engine.render(draw_salient=self.action_view_salient.isChecked(),
                                            draw_direction=self.action_view_direction.isChecked(),
                                            draw_watch=self.action_view_watch.isChecked())
@@ -314,7 +339,7 @@ class MainForm(QMainWindow):
                 qimg = QImage(frame_display.data, frame_display.shape[1], frame_display.shape[0], QImage.Format_RGB888)
                 pixmap = QPixmap.fromImage(qimg)
                 self.monitor.setPixmap(pixmap)
-                # Screen shotwwww
+                # Screen shot
                 if self.task_screen_shot:
                     file_name = config.DIR_PHOTO + datetime.utcnow().strftime('%Y%m%d%H%M%S%f') + '.png'
                     cv2.imwrite(file_name, watch)
@@ -328,8 +353,8 @@ class MainForm(QMainWindow):
                 if self.task_self_driving:
                     keys = [Qt.Key_A, Qt.Key_D, Qt.Key_W]
                     action = np.argmax(actions[0])
-                    self.socket_control.send(self.cmd_map[keys[action]])
-                    self.self_driving_clock = (self.self_driving_clock + 1) % 30
+                    self.control_socket.send(self.cmd_map[keys[action]])
+
         except error.URLError as e:
             self.logger.error('Stream: %s' % e.reason)
             self.label_stream_status.setText('Stream: %s' % e.reason)

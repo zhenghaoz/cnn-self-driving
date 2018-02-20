@@ -1,5 +1,5 @@
 DIR_ASSETS = 'assets/'
-DIR_DATA = '../data'
+DIR_DATA = '../data/'
 DIR_PHOTO = 'photo/'
 DIR_LOG = '../log/'
 

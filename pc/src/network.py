@@ -163,9 +163,9 @@ class PilotNet:
 
 if __name__ == "__main__":
     # Load 'data'
-    L = cv2.imread('test/L.png')
-    R = cv2.imread('test/R.png')
-    U = cv2.imread('test/U.png')
+    L = cv2.imread('../misc/L.png')
+    R = cv2.imread('../misc/R.png')
+    U = cv2.imread('../misc/U.png')
     train_image = np.stack([L, R, U] * 10)
     train_label = np.asarray([0, 1, 2] * 10)
     val_image = np.stack([L, R, U] * 5)
@@ -175,8 +175,8 @@ if __name__ == "__main__":
     # Train model
     net.fit(train_image, train_label, val_image, val_label, epoch=1, iters=100, print_iters=10)
     # Save model
-    net.save('test/test.ckpt')
+    net.save('../misc/test.ckpt')
     # Load model
-    net.load('test/test.ckpt')
+    net.load('../misc/test.ckpt')
     # Predict
     pred, salient = net.predict(np.asarray([L]))
