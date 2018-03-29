@@ -17,7 +17,7 @@ class QFlexLabel(QLabel):
 
     def resizeEvent(self, a0: QtGui.QResizeEvent):
         if self.pixmap():
-            super().setPixmap(self.pixmap().scaled(self.size(), Qt.KeepAspectRatio))
+            super().setPixmap(self.pixmap().scaled(self.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
 
 class ContentForm(QMainWindow):
@@ -91,3 +91,6 @@ class ContentForm(QMainWindow):
 
     def setText(self, statusbar, text):
         self.statusbar_set[statusbar].setText(text)
+
+    def isChecked(self, action):
+        return self.action_set[action].isChecked()

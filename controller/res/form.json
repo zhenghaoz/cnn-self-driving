@@ -1,0 +1,49 @@
+{
+  "title": "树莓派自动驾驶系统控制端",
+  "icon": "../res/icon.png",
+  "center": true,
+  "background-color": "black",
+  "default-content": "../res/offline.jpg",
+  "action": [
+    { "title": "截图", "icon": "../res/camera.png" },
+    { "title": "录制视频", "icon": "../res/start_record.png" },
+    { "title": "录制数据", "icon": "../res/start_record.png" },
+    { "title": "打开截图位置" },
+    { "title": "打开视频位置" },
+    { "title": "打开数据位置" },
+    { "title": "项目主页", "icon": "../res/github.png" },
+    { "title": "帮助" },
+    { "title": "显示预测置信度", "checkable": true, "checked": true },
+    { "title": "显示红外线传感器状态", "checkable": true, "checked": true },
+    { "title": "显示观测区域边框", "checkable": true, "checked": true },
+    { "title": "显示观测区域活跃度", "checkable": true, "checked": true }
+  ],
+  "menu": [
+    {
+      "title": "工具",
+      "action": ["截图", "录制视频", "录制数据", "-", "打开截图位置", "打开视频位置", "打开数据位置"]
+    },
+    {
+      "title": "视图",
+      "action": ["显示预测置信度", "显示红外线传感器状态", "显示观测区域边框", "显示观测区域活跃度"]
+    },
+    {
+      "title": "关于",
+      "action": ["项目主页", "帮助"]
+    }
+  ],
+  "toolbar": [
+    {
+      "title": "工具",
+      "movable": false,
+      "action": ["截图", "录制视频", "录制数据"]
+    }
+  ],
+  "status": [
+    {
+      "title": "状态栏",
+      "stretch": 1,
+      "text": "连接中..."
+    }
+  ]
+}

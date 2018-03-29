@@ -24,15 +24,14 @@ class DisplayEngine:
     SENSOR_SIZE = 15
 
     def __init__(self, height: int, width: int, channel: int,
-                 watch_height: int, watch_width: int):
+                 ob_height: int, ob_width: int):
         """
         Create a display engine.
         :param height: the height of the frame
         :param width: the width of the frame
         :param channel: the channel of the frame
-        :param watch_height: the height of the watch region
-        :param watch_width: the width of the watch region
-        :param detect_height: the height of the detect region
+        :param ob_height: the height of the watch region
+        :param ob_width: the width of the watch region
         """
         self.frame = np.zeros([height, width, channel])
         self.direction = [0,0,0]
@@ -43,23 +42,25 @@ class DisplayEngine:
         self.left_sensor: bool = False
         self.right_sensor: bool = False
         # Watch region
-        self.watch_height = watch_height
-        self.watch_width = watch_width
+        self.watch_height = ob_height
+        self.watch_width = ob_width
         self.watch_left = 0
         self.watch_right = self.width
         self.watch_top = self.height - int(self.width / self.watch_width * self.watch_height)
         self.watch_bottom = self.height
         self.mask = None
 
-    def set_frame(self, image: np.ndarray):
+        self.mask_color = np.zeros([self.height, self.width, 3])
+        self.mask_color[:, :, 1] = 255
+        self.mask_full = np.zeros([self.height, self.width, 1])
+
+    def set_frame(self, frame: np.ndarray):
         """
         Set current video frame
         :param image: current video frame
         """
-        # Reset image
-        self.image = image.copy()
         # Reset frame
-        self.frame = cv2.resize(image, (self.width, self.height))
+        self.frame = frame.copy()
         # Clear mask
         self.mask = None
 
@@ -133,10 +134,9 @@ class DisplayEngine:
             if np.abs(max_weight-min_weight) > 0:
                 mask_normed = (self.mask-min_weight)/(max_weight-min_weight)
                 mask_scaled = cv2.resize(mask_normed, (self.watch_right - self.watch_left, self.watch_bottom - self.watch_top))
-                mask_full = np.zeros([self.height, self.width, 1])
-                mask_full[self.watch_top:self.watch_bottom, self.watch_left:self.watch_right, 0] = mask_scaled
-                mask_color = np.array([0, 255, 0]).reshape([1, 1, 3])
-                output_img = output_img * (1 - mask_full) + mask_color * mask_full
+
+                self.mask_full[self.watch_top:self.watch_bottom, self.watch_left:self.watch_right, 0] = mask_scaled
+                # output_img = output_img * (1 - self.mask_full) + self.mask_color * self.mask_full
         return output_img.astype(np.uint8)
 
     def watch_sample(self) -> np.ndarray:
@@ -187,7 +187,7 @@ class DisplayEngine:
 if __name__ == '__main__':
     engine = DisplayEngine(config.MONITOR_HEIGHT,
                            config.MONITOR_WIDTH,
-                           config.MONITOR_CHANNEL, 20, 100)
+                           config.STREAM_CHANNEL, 20, 100)
     stream = cv2.VideoCapture(config.URL_STREAM)
     while True:
         _, raw = stream.read()
