@@ -8,6 +8,8 @@
     { "title": "截图", "icon": "../res/camera.png" },
     { "title": "录制视频", "icon": "../res/start_record.png" },
     { "title": "录制数据", "icon": "../res/start_record.png" },
+    { "title": "开始训练模型" },
+    { "title": "浏览训练数据" },
     { "title": "打开截图位置" },
     { "title": "打开视频位置" },
     { "title": "打开数据位置" },
@@ -22,6 +24,10 @@
     {
       "title": "工具",
       "action": ["截图", "录制视频", "录制数据", "-", "打开截图位置", "打开视频位置", "打开数据位置"]
+    },
+    {
+      "title": "训练",
+      "action": ["开始训练模型", "浏览训练数据"]
     },
     {
       "title": "视图",

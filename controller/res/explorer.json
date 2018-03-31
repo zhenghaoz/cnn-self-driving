@@ -1,0 +1,22 @@
+{
+  "title": "训练数据浏览器",
+  "icon": "../res/icon.png",
+  "center": true,
+  "background-color": "black",
+  "default-content": "../res/offline.jpg",
+  "action": [
+    { "title": "上一张", "icon": "../res/left.png", "shortcut": "Left" },
+    { "title": "下一张", "icon": "../res/right.png", "shortcut": "Right" },
+    { "title": "查找错误分类图片", "icon": "../res/find.png", "shortcut": "Down" },
+    { "title": "删除", "icon": "../res/delete.png", "shortcut": "Delete"  },
+    { "title": "保存", "icon": "../res/save.png", "shortcut": "Ctrl+S"  }
+  ],
+  "toolbar": [
+    {
+      "title": "工具",
+      "area": "bottom",
+      "movable": false,
+      "action": ["上一张", "下一张", "查找错误分类图片", "删除", "保存"]
+    }
+  ]
+}
