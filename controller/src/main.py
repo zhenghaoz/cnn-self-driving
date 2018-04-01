@@ -1,190 +1,72 @@
-import os
-import platform
+import os.path
 import socket
-import struct
-import subprocess
 import sys
 import time
 import webbrowser
 from datetime import datetime
-from logging import Logger
 from threading import Thread
-from urllib import error
 
 import cv2
-import numpy as np
 from PyQt5 import Qt
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 
-import asset
 import config
-from display import DisplayEngine
-from network import PilotNet
+import util
+from car import Car
+from editor import FrameEditor
+from form import ContentForm
+from dataset import DataFile
+from policy import Network, Policy
+from explorer import ExplorerForm
 
-
-class MainForm(QMainWindow):
-
-    # Enums
-
-    STOP = -1
-    TURN_LEFT = 0
-    TURN_RIGHT = 1
-    FORWARD = 2
-    BACKWARD = 3
-
-    # Start up
+class MainForm(ContentForm):
 
     def __init__(self):
-        super().__init__()
-
-        self.logger = Logger('Host', 30)
-
-        self.engine = DisplayEngine(config.MONITOR_HEIGHT,
-                                    config.MONITOR_WIDTH,
-                                    config.MONITOR_CHANNEL,
-                                    PilotNet.INPUT_HEIGHT,
-                                    PilotNet.INPUT_WIDTH)
-
-        self.net = PilotNet()
-        self.net.load('model/driver.ckpt')
-
-        # Initialize tasks
-        self.task_screen_shot = False
-        self.task_video_record = False
-        self.task_self_driving = False
-        self.task_video_frames = None
-        self.task_video_actions = None
-        self.task_video_file_name = None
-        self.self_driving_clock = 0
-
+        # Setup form
+        super().__init__('../res/main.json')
+        self.show()
+        # Setup status
+        self.camera_mode = False
+        self.video_mode = False
+        self.data_mode = False
+        self.auto_mode = False
+        self.key_stack = [Qt.Key_Space]
+        self.key_status = {}
         self.left_sensor = 0
         self.right_sensor = 0
-
-        # Initialize direction stack
-        self.action_stack = [Qt.Key_Space]
-        self.key_status = {}
-
-        # Initialize command map
-        self.cmd_map = {
-            Qt.Key_Space: self.CMD_STOP,
-            Qt.Key_W: self.CMD_FORWARD,
-            Qt.Key_S: self.CMD_BACKWARD,
-            Qt.Key_A: self.CMD_TURN_LEFT,
-            Qt.Key_D: self.CMD_TURN_RIGHT
-        }
-
-        # Geometries
-        monitor_x = 0
-        monitor_y = 60
-        status_height = 20
-        form_height = monitor_y + config.MONITOR_HEIGHT + status_height
-        form_width = config.MONITOR_WIDTH
-
-        # Draw monitor
-        self.pixmap = QPixmap(asset.IMAGE_OFFLINE)
-        self.monitor = QLabel(self)
-        self.monitor.setStyleSheet('background-color: black')
-        self.monitor.setGeometry(monitor_x, monitor_y, config.MONITOR_WIDTH, config.MONITOR_HEIGHT)
-        self.monitor.setAlignment(Qt.AlignCenter)
-        self.monitor.setPixmap(self.pixmap.scaled(self.monitor.width(), self.monitor.height(), Qt.KeepAspectRatio))
-
-        # Setup actions
-        take_photo_action = QAction(QIcon(asset.ICON_CAMERA), 'Screen Shot', self)
-        take_photo_action.triggered.connect(self.action_screen_shot_triggered)
-        self.action_video_record = QAction(QIcon(asset.ICON_START_RECORD), asset.STRING_START_RECORD, self)
-        self.action_video_record.triggered.connect(self.action_video_record_triggered)
-        browse_videos_action = QAction('Browse Data', self)
-        browse_videos_action.triggered.connect(self.action_browse_video_triggered)
-        browse_photos_action = QAction('Browse Photos', self)
-        browse_photos_action.triggered.connect(self.action_browse_photo_triggered)
-        train_action = QAction(QIcon(asset.ICON_START_TRAIN), 'Start Training', self)
-        load_action = QAction(QIcon(asset.ICON_OPEN), 'Load Model', self)
-        load_action.setShortcut('Ctrl+O')
-        load_action.triggered.connect(self.action_load_model_triggered)
-        save_action = QAction(QIcon(asset.ICON_SAVE), 'Save Model', self)
-        save_action.setShortcut('Ctrl+S')
-        save_action.triggered.connect(self.action_save_model_triggered)
-        self.action_view_watch = QAction("Display Watch Region", self, checkable=True, checked=True)
-        self.action_view_direction = QAction('Display Directions', self, checkable=True, checked=True)
-        self.action_view_salient = QAction('Display Salient Map', self, checkable=True, checked=True)
-        browse_home_page_action = QAction(QIcon(asset.ICON_GITHUB), 'Home Page', self)
-        browse_home_page_action.triggered.connect(self.action_browse_home_page_triggered)
-        show_usage_action = QAction('Usage', self)
-        show_usage_action.triggered.connect(self.action_usage_triggered)
-
-        # Draw menu
-        menu = self.menuBar()
-        menu_record = menu.addMenu('Record')
-        menu_record.addAction(take_photo_action)
-        menu_record.addAction(self.action_video_record)
-        menu_record.addSeparator()
-        menu_record.addAction(browse_photos_action)
-        menu_record.addAction(browse_videos_action)
-        menu_learn = menu.addMenu('Intelligence')
-        menu_learn.addAction(train_action)
-        menu_learn.addSeparator()
-        menu_learn.addAction(load_action)
-        menu_learn.addAction(save_action)
-        menu_view = menu.addMenu('View')
-        menu_view.addAction(self.action_view_watch)
-        menu_view.addAction(self.action_view_direction)
-        menu_view.addAction(self.action_view_salient)
-        menu_about = menu.addMenu('About')
-        menu_about.addAction(browse_home_page_action)
-        menu_about.addSeparator()
-        menu_about.addAction(show_usage_action)
-
-        # Draw toolbar
-        tool_bar_record = self.addToolBar('Record')
-        tool_bar_record.setMovable(False)
-        tool_bar_record.addAction(take_photo_action)
-        tool_bar_record.addAction(self.action_video_record)
-        tool_bar_learn = self.addToolBar('Intelligence')
-        tool_bar_learn.setMovable(False)
-        tool_bar_learn.addAction(train_action)
-        tool_bar_learn.addAction(load_action)
-        tool_bar_learn.addAction(save_action)
-        tool_bar_about = self.addToolBar('About')
-        tool_bar_about.setMovable(False)
-        tool_bar_about.addAction(browse_home_page_action)
-
-        # Draw status bars
-        self.label_ctl_status = QLabel()
-        self.label_ctl_status.setText('Control: Connecting...')
-        self.label_stream_status = QLabel()
-        self.label_stream_status.setText('Stream: Connecting...')
-        self.label_op_status = QLabel()
-
-        # Draw form
-        self.statusBar().addPermanentWidget(self.label_ctl_status, 1)
-        self.statusBar().addPermanentWidget(self.label_stream_status, 1)
-        self.statusBar().addPermanentWidget(self.label_op_status, 2)
-        self.setWindowTitle('Grand Raspberry Auto Host')
-        self.setWindowIcon(QIcon(asset.ICON_ICON))
-        self.setFixedSize(form_width, form_height)
-        # Move the form to the center of current screen
-        screen_size = QDesktopWidget().screenGeometry()
-        frame_size = self.frameSize()
-        self.move((screen_size.width() / 2) - (frame_size.width() / 2),
-                  (screen_size.height() / 2) - (frame_size.height() / 2))
-        self.show()
-
-        # Connect agent
+        # Setup folder
+        for dir in [config.DIR_DATA, config.DIR_VIDEO, config.DIR_PHOTO]:
+            if not os.path.exists(dir):
+                os.makedirs(dir)
+        # Setup event
+        self.setEvent("截图", self.action_camera)
+        self.setEvent("录制视频", self.action_video)
+        self.setEvent("录制数据", self.action_data)
+        self.setEvent("打开截图位置", self.action_open_photo_folder)
+        self.setEvent("打开视频位置", self.action_open_video_folder)
+        self.setEvent("打开数据位置", self.action_open_data_folder)
+        self.setEvent("浏览训练数据", self.open_data_explorer)
+        self.setEvent("项目主页", self.action_browse_home_page)
+        self.setEvent("帮助", self.action_usage)
+        self.policy = Policy('model/driver.ckpt', '../data/m')
+        self.explorer = ExplorerForm(self.policy.policy)
+        # Connect
         try:
-            control_addr = ('192.168.1.1', 2001)
-            sensor_addr = ('192.168.1.1', 2002)
-            self.control_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.control_socket.settimeout(config.CONNECTION_TIME_OUT)
-            self.control_socket.connect(control_addr)
-            self.sensor_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.sensor_socket.connect(sensor_addr)
-            self.label_ctl_status.setText('Control: Online')
+            self.car = Car('192.168.1.1')
+            self.setText("状态栏", "连接成功")
+            self.key_map = {
+                Qt.Key_Space: self.car.stop,
+                Qt.Key_W: self.car.forward,
+                Qt.Key_S: self.car.backward,
+                Qt.Key_A: self.car.turn_left,
+                Qt.Key_D: self.car.turn_right
+            }
         except socket.timeout as e:
-            self.logger.error('Control: timed out')
-            self.label_ctl_status.setText('Control: timed out')
-
+            self.setText("状态栏", "连接超时")
+        except socket.error as e:
+            self.setText("状态栏", e.strerror)
         # Start streamer
         self.keep_streamer = True
         self.thread_streamer = Thread(target=self.streamer)
@@ -193,186 +75,161 @@ class MainForm(QMainWindow):
         self.thread_sensor = Thread(target=self.sensor)
         self.thread_sensor.start()
 
-    # Internal Events
+    def closeEvent(self, event: QCloseEvent):
+        self.keep_streamer = False
+        self.keep_sensor = False
+        self.thread_streamer.join()
+        self.thread_sensor.join()
 
     def keyPressEvent(self, event: QKeyEvent):
         # Ignore auto repeat
         if event.isAutoRepeat():
             return
         if event.key() == Qt.Key_Up:
-            self.task_self_driving = True
-            self.self_driving_clock = 0
+            self.auto_mode = True
             return
-        if event.key() in self.cmd_map.keys():
+        if event.key() in self.key_map.keys():
             # Save key status
             self.key_status[event.key()] = True
             # Append action
-            self.action_stack.append(event.key())
+            self.key_stack.append(event.key())
             # Send action
-            self.control_socket.send(self.cmd_map[self.action_stack[-1]])
+            self.key_map[self.key_stack[-1]]()
 
     def keyReleaseEvent(self, event: QKeyEvent):
         # Ignore auto repeat
         if event.isAutoRepeat():
             return
         if event.key() == Qt.Key_Up:
-            self.task_self_driving = False
-            self.control_socket.send(self.cmd_map[Qt.Key_Space])
+            self.auto_mode = False
+            self.car.stop()
             return
         # Recover previous action
-        if event.key() in self.cmd_map.keys():
+        if event.key() in self.key_map.keys():
             # Save key status
             self.key_status[event.key()] = False
             # Clear stack
-            while len(self.action_stack) > 1 \
-                    and self.key_status[self.action_stack[-1]] is False:
-                self.action_stack.pop()
-            self.control_socket.send(self.cmd_map[self.action_stack[-1]])
+            while len(self.key_stack) > 1 \
+                    and self.key_status[self.key_stack[-1]] is False:
+                self.key_stack.pop()
+            self.key_map[self.key_stack[-1]]()
 
-    def closeEvent(self, event: QCloseEvent):
-        self.keep_streamer = False
-        self.keep_sensor = False
-        self.control_socket.close()
-        self.sensor_socket.close()
-        self.thread_streamer.join()
-        self.thread_sensor.join()
+    def action_camera(self):
+        self.camera_mode = True
 
-    # Action Events
-
-    def action_screen_shot_triggered(self):
-        self.task_screen_shot = True
-
-    def action_video_record_triggered(self):
-        if self.task_video_record:
-            self.task_video_record = False
-            # Save data
-            file_name = config.DIR_DATA + datetime.utcnow().strftime('%Y%m%d%H%M%S%f')
-            np.savez_compressed(file_name, image=self.task_video_frames, label=self.task_video_actions)
-            self.label_op_status.setText('Save data at ' + file_name + '.npz')
-            # Reset data
-            self.task_video_frames = None
-            self.task_video_actions = None
-            # Reset action for start
-            self.action_video_record.setText(asset.STRING_START_RECORD)
-            self.action_video_record.setIcon(QIcon(asset.ICON_START_RECORD))
+    def action_video(self):
+        if self.video_mode:
+            self.video_mode = False
+            # Save video
+            self.video_writer.release()
+            self.setText("状态栏", "视频录制完成")
+            # Reset action to [start]
+            self.action_set["录制视频"].setText("录制视频")
+            self.action_set["录制视频"].setIcon(QIcon("../res/start_record.png"))
         else:
-            self.task_video_actions = []
-            self.task_video_frames = []
-            self.task_video_record = True
-            # Reset action for stop
-            self.action_video_record.setText(asset.STRING_STOP_RECORD)
-            self.action_video_record.setIcon(QIcon(asset.ICON_STOP_RECORD))
+            file_name = config.DIR_VIDEO + datetime.utcnow().strftime('%Y-%m-%dL%H:%M:%S:%f') + '.mkv'
+            self.setText("状态栏", "开始录制视频：" + file_name)
+            self.video_writer = cv2.VideoWriter(file_name, config.STREAN_FOURCC,
+                                                config.STREAM_FPS, (config.STREAM_WIDTH, config.STREAM_HEIGHT))
+            self.video_mode = True
+            # Reset action to [stop]
+            self.action_set["录制视频"].setText("停止录制视频")
+            self.action_set["录制视频"].setIcon(QIcon("../res/stop_record.png"))
+
+    def action_data(self):
+        if self.data_mode:
+            self.data_mode = False
+            # Save video
+            file_name = config.DIR_DATA + config.DATA_FILE
+            self.data_file = DataFile(file_name)
+            self.data_file.append(self.data_observations, self.data_actions)
+            self.setText("状态栏", "视频录制完成：" + file_name)
+            # Reset action to [start]
+            self.action_set["录制数据"].setText("录制数据")
+            self.action_set["录制数据"].setIcon(QIcon("../res/start_record.png"))
+        else:
+            self.setText("状态栏", "开始录制数据")
+            self.data_observations = []
+            self.data_actions = []
+            self.data_mode = True
+            # Reset action to [stop]
+            self.action_set["录制数据"].setText("停止录制数据")
+            self.action_set["录制数据"].setIcon(QIcon("../res/stop_record.png"))
 
     @staticmethod
-    def action_browse_video_triggered():
-        open_file_xdg(config.DIR_DATA)
+    def action_open_photo_folder():
+        util.open_file_xdg(config.DIR_PHOTO)
 
     @staticmethod
-    def action_browse_photo_triggered():
-        open_file_xdg(config.DIR_PHOTO)
-
-    def action_load_model_triggered(self):
-        file_name = QFileDialog.getOpenFileName(self, 'Load Model', './', 'Model (*.ckpt);;All Files (*.*)')
-
-    def action_save_model_triggered(self):
-        file_name = QFileDialog.getSaveFileName(self, 'Save Model', './', 'Model (*.ckpt);;All Files (*.*)')
+    def action_open_video_folder():
+        util.open_file_xdg(config.DIR_VIDEO)
 
     @staticmethod
-    def action_browse_home_page_triggered():
-        webbrowser.open(config.URL_HOME_PAGE)
+    def action_open_data_folder():
+        util.open_file_xdg(config.DIR_DATA)
 
-    def action_usage_triggered(self):
+    def open_data_explorer(self):
+        self.explorer.show()
+
+    @staticmethod
+    def action_browse_home_page():
+        webbrowser.open('https://github.com/ZhangZhenghao/raspberry-autonomous')
+
+    def action_usage(self):
         qbox = QMessageBox(self)
-        qbox.setWindowTitle('Usage')
-        qbox.setText(asset.STRING_USAGE)
+        qbox.setWindowTitle('使用帮助')
+        qbox.setText('W\t前进\nS\t后退\nA\t左转\nD\t右转\n空格\t刹车\n↑\t自动驾驶模式')
         qbox.show()
-
-    # Commands
-
-    CMD_STOP = b'\xff\x00\x00\x00\xff'
-    CMD_FORWARD = b'\xff\x00\x01\x00\xff'
-    CMD_BACKWARD = b'\xff\x00\x02\x00\xff'
-    CMD_TURN_LEFT = b'\xff\x00\x03\x00\xff'
-    CMD_TURN_RIGHT = b'\xff\x00\x04\x00\xff'
-
-    @staticmethod
-    def cmd_left_speed(speed):
-        assert speed <= 100
-        return b'\xff\x02\x01' + bytes([speed]) + b'\xff'
-
-    @staticmethod
-    def cmd_right_speed(speed):
-        assert speed <= 100
-        return b'\xff\x02\x02' + bytes([speed]) + b'\xff'
-
-    # Threads
 
     def sensor(self):
         while self.keep_sensor:
-            # Read sensor status
-            self.sensor_socket.send(b'\xff')
-            data = self.sensor_socket.recv(1)
-            data = struct.unpack('B', data)[0]
-            self.left_sensor = (data & 0x1) >> 0
-            self.right_sensor = (data & 0x2) >> 1
+            self.left_sensor, self.right_sensor = 0, 0 #self.car.read_sensor()
             time.sleep(0.02)
 
     def streamer(self):
-        try:
-            stream = cv2.VideoCapture(config.URL_STREAM)
-            self.label_stream_status.setText('Stream: Online')
-            while self.keep_streamer:
-                ret, raw = stream.read()
-                if not ret:
-                    print('Panic')
-                self.engine.set_frame(raw)
-                watch = self.engine.watch_sample()
-                # Predict actions
-                actions, salients = self.net.predict(np.asarray([watch]))
-                self.engine.set_direction(actions[0])
-                self.engine.set_salient(salients[0,:,:,0])
-                self.engine.set_sensor(self.left_sensor == 1, self.right_sensor == 1)
-                frame = self.engine.render(draw_salient=self.action_view_salient.isChecked(),
-                                           draw_direction=self.action_view_direction.isChecked(),
-                                           draw_watch=self.action_view_watch.isChecked())
-                frame_display = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                qimg = QImage(frame_display.data, frame_display.shape[1], frame_display.shape[0], QImage.Format_RGB888)
-                pixmap = QPixmap.fromImage(qimg)
-                self.monitor.setPixmap(pixmap)
-                # Screen shot
-                if self.task_screen_shot:
-                    file_name = config.DIR_PHOTO + datetime.utcnow().strftime('%Y%m%d%H%M%S%f') + '.png'
-                    cv2.imwrite(file_name, watch)
-                    self.label_op_status.setText('Save image at ' + file_name)
-                    self.task_screen_shot = False
-                # Video Record
-                if self.task_video_record and self.action_stack[-1] in [Qt.Key_A, Qt.Key_D, Qt.Key_W]:
-                    self.task_video_frames.append(watch)
-                    self.task_video_actions.append(self.action_stack[-1])
-                # Self driving
-                if self.task_self_driving:
-                    keys = [Qt.Key_A, Qt.Key_D, Qt.Key_W]
-                    action = np.argmax(actions[0])
-                    self.control_socket.send(self.cmd_map[keys[action]])
+        frame_editor = FrameEditor(config.STREAM_HEIGHT,
+                             config.STREAM_WIDTH,
+                             config.STREAM_CHANNEL,
+                             Network.INPUT_HEIGHT,
+                             Network.INPUT_WIDTH)
 
-        except error.URLError as e:
-            self.logger.error('Stream: %s' % e.reason)
-            self.label_stream_status.setText('Stream: %s' % e.reason)
-        finally:
-            return
-
-
-def open_file_xdg(path):
-    """
-    Open file or directory in system's file manager.
-    :param path: file/directory path
-    """
-    if platform.system() == "Windows":
-        os.startfile(path)
-    elif platform.system() == "Darwin":
-        subprocess.Popen(["open", path])
-    else:
-        subprocess.Popen(["xdg-open", path])
+        while self.keep_streamer:
+            ret, frame = self.car.read_camera()
+            if not ret:
+                self.setText("状态栏", "视频信号中断")
+                break
+            frame_editor.set_frame(frame)
+            observation = frame_editor.get_observation()
+            # # Predict actions
+            action, prob, salient = self.policy.get_action(observation, self.left_sensor, self.right_sensor, self.auto_mode)
+            frame_editor.set_direction(prob)
+            frame_editor.set_salient(salient)
+            frame_editor.set_sensor(self.left_sensor == 1, self.right_sensor == 1)
+            frame = frame_editor.render(draw_salient=self.isChecked("显示观测区域活跃度"),
+                                  draw_prob=self.isChecked("显示预测置信度"),
+                                  draw_border=self.isChecked("显示观测区域边框"),
+                                        draw_sensor=self.isChecked("显示红外线传感器状态"))
+            # Convert image
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            image = QImage(frame.data, frame.shape[1], frame.shape[0], QImage.Format_RGB888)
+            self.setContent(QPixmap.fromImage(image))
+            # Camera mode
+            if self.camera_mode:
+                file_name = config.DIR_PHOTO + datetime.utcnow().strftime('%Y-%m-%dL%H:%M:%S:%f') + '.png'
+                cv2.imwrite(file_name, frame)
+                self.setText("状态栏", "截图保存至：%s" % file_name)
+                self.camera_mode = False
+            # Video Record
+            if self.video_mode:
+                self.video_writer.write(frame)
+            # Data Record
+            if self.data_mode and self.key_stack[-1] in [Qt.Key_A, Qt.Key_D, Qt.Key_W]:
+                self.data_observations.append(observation)
+                action_map = {Qt.Key_A:0, Qt.Key_D:1, Qt.Key_W:2}
+                self.data_actions.append(action_map[self.key_stack[-1]])
+            # # Self driving
+            # if self.task_self_driving:
+            #     self.car.step(action)
 
 
 if __name__ == '__main__':

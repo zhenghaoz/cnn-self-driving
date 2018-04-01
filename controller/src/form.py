@@ -29,44 +29,60 @@ class ContentForm(QMainWindow):
             layout = json.load(file)
         # Setup action
         self.action_set = {}
-        action_layout = layout["action"]
-        for item_layout in action_layout:
-            title = item_layout["title"]
-            self.action_set[title] = QAction(title, self)
-            if "checkable" in item_layout.keys():
-                self.action_set[title].setCheckable(item_layout["checkable"])
-            if "checked" in item_layout.keys():
-                self.action_set[title].setChecked(item_layout["checked"])
-            if "icon" in item_layout.keys():
-                self.action_set[title].setIcon(QIcon(item_layout["icon"]))
+        if "action" in layout.keys():
+            action_layout = layout["action"]
+            for item_layout in action_layout:
+                title = item_layout["title"]
+                self.action_set[title] = QAction(title, self)
+                if "checkable" in item_layout.keys():
+                    self.action_set[title].setCheckable(item_layout["checkable"])
+                if "checked" in item_layout.keys():
+                    self.action_set[title].setChecked(item_layout["checked"])
+                if "icon" in item_layout.keys():
+                    self.action_set[title].setIcon(QIcon(item_layout["icon"]))
+                if "shortcut" in item_layout.keys():
+                    self.action_set[title].setShortcut(QKeySequence(item_layout["shortcut"]))
         # Setup menu
-        menu_layout = layout['menu']
-        menu_bar = self.menuBar()
-        for item_layout in menu_layout:
-            menu_item = menu_bar.addMenu(item_layout["title"])
-            if "action" in item_layout.keys():
-                for action in item_layout["action"]:
-                    if action == "-":
-                        menu_item.addSeparator()
-                    else:
-                        menu_item.addAction(self.action_set[action])
+        if "menu" in layout.keys():
+            menu_layout = layout['menu']
+            menu_bar = self.menuBar()
+            for item_layout in menu_layout:
+                menu_item = menu_bar.addMenu(item_layout["title"])
+                if "action" in item_layout.keys():
+                    for action in item_layout["action"]:
+                        if action == "-":
+                            menu_item.addSeparator()
+                        else:
+                            menu_item.addAction(self.action_set[action])
         # Setup toolbar
-        toolbar_layout = layout["toolbar"]
-        for item_layout in toolbar_layout:
-            toobar_item = self.addToolBar(item_layout["title"])
-            if "movable" in item_layout.keys():
-                toobar_item.setMovable(item_layout["movable"])
-            if "action" in item_layout.keys():
-                for action in item_layout["action"]:
-                    toobar_item.addAction(self.action_set[action])
+        if "toolbar" in layout.keys():
+            toolbar_layout = layout["toolbar"]
+            for item_layout in toolbar_layout:
+                toolbar_item = QToolBar(item_layout["title"])
+                toolbar_area = Qt.TopToolBarArea
+                if "area" in item_layout.keys():
+                    toolbar_area = {
+                        "top": Qt.TopToolBarArea,
+                        "bottom": Qt.BottomToolBarArea,
+                        "left": Qt.LeftToolBarArea,
+                        "right": Qt.RightToolBarArea
+                    }
+                    toolbar_area = toolbar_area[item_layout["area"]]
+                self.addToolBar(toolbar_area, toolbar_item)
+                if "movable" in item_layout.keys():
+                    toolbar_item.setMovable(item_layout["movable"])
+                if "action" in item_layout.keys():
+                    for action in item_layout["action"]:
+                        toolbar_item.addAction(self.action_set[action])
         # Setup status bar
         self.statusbar_set = {}
-        statusbar_layout = layout["status"]
-        for item_layout in statusbar_layout:
-            statusbar_item = QLabel()
-            statusbar_item.setText(item_layout["text"])
-            self.statusBar().addPermanentWidget(statusbar_item, item_layout["stretch"])
-            self.statusbar_set[item_layout["title"]] = statusbar_item
+        if "status" in layout.keys():
+            statusbar_layout = layout["status"]
+            for item_layout in statusbar_layout:
+                statusbar_item = QLabel()
+                statusbar_item.setText(item_layout["text"])
+                self.statusBar().addPermanentWidget(statusbar_item, item_layout["stretch"])
+                self.statusbar_set[item_layout["title"]] = statusbar_item
         # Setup form
         self.setWindowTitle(layout["title"])
         self.setWindowIcon(QIcon(layout["icon"]))

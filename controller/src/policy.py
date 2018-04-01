@@ -1,11 +1,52 @@
-import math
-
-import cv2
 import numpy as np
 import tensorflow as tf
+import math
+import os.path
+import pickle
+from dataset import DataFile
 
 
-class PilotNet:
+
+class Policy:
+
+    def __init__(self, model_file, data_file, memory_size=3):
+        # Load policy model
+        self.policy = Network()
+        self.policy.load(model_file)
+        # Create memory
+        self.memory = []
+        self.memory_ptr = 0
+        self.memory_permission = True
+        self.memory_size = memory_size
+        self.memory_file = DataFile(data_file)
+
+    def get_action(self, camera_frame, left_sensor, right_sensor, memory_mode):
+        actions, salients = self.policy.predict([camera_frame])
+        # Recover memory mode
+        if not memory_mode:
+            self.memory_permission = True
+        # Save memory to file
+        if self.memory_permission and memory_mode and left_sensor != right_sensor:
+            self.memory_permission = False
+            print('Fuck')
+            mem_len = len(self.memory)
+            if left_sensor:
+                mem_actions = [1] * mem_len
+            else:
+                mem_actions = [0] * mem_len
+            self.memory_file.append(self.memory, mem_actions)
+        # Save to memory
+        if self.memory_permission and memory_mode:
+            if len(self.memory) < self.memory_size:
+                self.memory.append(camera_frame)
+            else:
+                self.memory[self.memory_ptr] = camera_frame
+            self.memory_ptr = (self.memory_ptr + 1) % self.memory_size
+        # Self-driving
+        return np.argmax(actions[0]), actions[0], salients[0,:,:,0]
+
+
+class Network:
 
     # Model configuration
 
@@ -53,18 +94,19 @@ class PilotNet:
         self.train_step = optimizer.minimize(self.loss)
         # Create session
         self.sess = tf.Session()
+        self.initialize()
+
+    def initialize(self):
         self.sess.run(tf.global_variables_initializer())
 
     def fit(self, train_image: np.ndarray, train_label: np.ndarray,
-            val_image: np.ndarray, val_label: np.ndarray,
-            epoch=30, batch_size=100, print_iters=100, iters=1000) -> dict:
+            val_image: np.ndarray, val_label: np.ndarray, batch_size=100, print_iters=100, iters=1000, report_func=None) -> dict:
         """
         Fit model.
         :param train_image: images of training data set
         :param train_label: labels of training data set
         :param val_image: images of validation data set
         :param val_label: labels of validation data set
-        :param epoch: training epoch
         :param batch_size: training batch size
         :param print_iters: print cost value every n iters
         :param iters: training iterations in each epoch
@@ -75,30 +117,31 @@ class PilotNet:
             'train_acc': [],
             'val_acc': []
         }
-        for i in range(epoch):
-            for iter in range(iters):
-                # Generate batch
-                batch_index = np.random.choice(len(train_image), batch_size)
-                batch_image = train_image[batch_index]
-                batch_label = train_label[batch_index]
-                # Train model
-                loss, _ = self.sess.run([self.loss, self.train_step], {
-                    self.input_image: batch_image,
-                    self.input_label: batch_label
-                })
-                history['loss'].append(loss)
-                # Print loss
-                if (iter + 1) % print_iters == 0:
-                    print('iter %d/%d, loss = %f' % (iter+1, iters, loss))
-            # Calculate accuracy
-            train_acc = self.check_accuracy(train_image, train_label)
-            val_acc = self.check_accuracy(val_image, val_label)
-            history['train_acc'].append(train_acc)
-            history['val_acc'].append(val_acc)
-            print('epoch %d/%d, train acc = %f, val acc = %f' % (i+1, epoch, train_acc, val_acc))
+        for i in range(iters):
+            # Generate batch
+            batch_index = np.random.choice(len(train_image), batch_size)
+            batch_image = train_image[batch_index]
+            batch_label = train_label[batch_index]
+            # Train model
+            loss, _ = self.sess.run([self.loss, self.train_step], {
+                self.input_image: batch_image,
+                self.input_label: batch_label
+            })
+            history['loss'].append(loss)
+            # Print loss
+            if (i + 1) % print_iters == 0:
+                print('iter %d/%d, loss = %f' % (i+1, iters, loss))
+                # Calculate accuracy
+                train_acc = self.check_accuracy(train_image, train_label)
+                val_acc = self.check_accuracy(val_image, val_label)
+                history['train_acc'].append(train_acc)
+                history['val_acc'].append(val_acc)
+                # Call report function
+                if report_func:
+                    report_func(i, history)
         return history
 
-    def predict(self, image: np.ndarray) -> tuple:
+    def predict(self, image) -> tuple:
         """
         Predict direction according road image.
         :param sess: computation session
@@ -160,23 +203,9 @@ class PilotNet:
         bn = tf.layers.batch_normalization(conv, 3)
         return tf.nn.relu(bn)
 
-
-if __name__ == "__main__":
-    # Load 'data'
-    L = cv2.imread('../misc/L.png')
-    R = cv2.imread('../misc/R.png')
-    U = cv2.imread('../misc/U.png')
-    train_image = np.stack([L, R, U] * 10)
-    train_label = np.asarray([0, 1, 2] * 10)
-    val_image = np.stack([L, R, U] * 5)
-    val_label = np.asarray([0, 1, 2] * 5)
-    # Create model
-    net = PilotNet(1e-6)
-    # Train model
-    net.fit(train_image, train_label, val_image, val_label, epoch=1, iters=100, print_iters=10)
-    # Save model
-    net.save('../misc/test.ckpt')
-    # Load model
-    net.load('../misc/test.ckpt')
-    # Predict
-    pred, salient = net.predict(np.asarray([L]))
+if __name__ == '__main__':
+    import cv2
+    file = DataFile('../data/20180220074817667425.data')
+    for ob in file.data['observation']:
+        cv2.imshow('A', ob)
+        cv2.waitKey(0)

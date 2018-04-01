@@ -5,23 +5,23 @@ import asset
 import config
 
 
-class DisplayEngine:
+class FrameEditor:
 
     # Internal configuration
 
-    DIRECTION_WIDTH = 20
-    DIRECTION_HEIGHT = 100
+    DIRECTION_WIDTH = 10
+    DIRECTION_HEIGHT = 50
     DIRECTION_MARGIN = 10
-    DIRECTION_PADDING = 20
+    DIRECTION_PADDING = 10
     DIRECTION_ICONS = [
         asset.ICON_LEFT_ARROW,
         asset.ICON_UP_ARROW,
         asset.ICON_RIGHT_ARROW
     ]
 
-    SENSOR_MARGIN = 20
+    SENSOR_MARGIN = 10
     SENSOR_PADDING = 20
-    SENSOR_SIZE = 15
+    SENSOR_SIZE = 10
 
     def __init__(self, height: int, width: int, channel: int,
                  ob_height: int, ob_width: int):
@@ -60,6 +60,7 @@ class DisplayEngine:
         :param image: current video frame
         """
         # Reset frame
+        self.image = frame.copy()
         self.frame = frame.copy()
         # Clear mask
         self.mask = None
@@ -88,17 +89,17 @@ class DisplayEngine:
         self.left_sensor = left_sensor
         self.right_sensor = right_sensor
 
-    def render(self, draw_salient: bool=True, draw_direction: bool=True, draw_watch: bool=True, draw_sensor: bool=True):
+    def render(self, draw_salient: bool=True, draw_prob: bool=True, draw_border: bool=True, draw_sensor: bool=True):
         """
         Render a frame for display.
         :param draw_salient: whether draw the salient map
-        :param draw_direction: whether draw direction probabilities
-        :param draw_watch: whether draw the watch region
+        :param draw_prob: whether draw direction probabilities
+        :param draw_border: whether draw the watch region
         :return: the rendered image
         """
         output_img = self.frame.copy()
         # Draw directions
-        if draw_direction:
+        if draw_prob:
             bar_overlay = output_img.copy()
             icon_top = self.DIRECTION_PADDING
             icon_bottom = self.DIRECTION_PADDING + self.DIRECTION_WIDTH
@@ -120,7 +121,7 @@ class DisplayEngine:
                 icon = cv2.imread(self.DIRECTION_ICONS[i])
                 output_img = self.draw_image(output_img, icon, bar_left, icon_top, bar_right, icon_bottom)
         # Draw watch area
-        if draw_watch:
+        if draw_border:
             output_img = cv2.rectangle(output_img, (self.watch_left, self.watch_top), (self.watch_right - 1, self.watch_bottom - 1), (255, 255, 255))
         if draw_sensor:
             output_img = cv2.circle(output_img, (self.width-self.SENSOR_PADDING-self.SENSOR_SIZE, self.SENSOR_PADDING+self.SENSOR_SIZE),
@@ -136,10 +137,10 @@ class DisplayEngine:
                 mask_scaled = cv2.resize(mask_normed, (self.watch_right - self.watch_left, self.watch_bottom - self.watch_top))
 
                 self.mask_full[self.watch_top:self.watch_bottom, self.watch_left:self.watch_right, 0] = mask_scaled
-                # output_img = output_img * (1 - self.mask_full) + self.mask_color * self.mask_full
+                output_img = output_img * (1 - self.mask_full) + self.mask_color * self.mask_full
         return output_img.astype(np.uint8)
 
-    def watch_sample(self) -> np.ndarray:
+    def get_observation(self) -> np.ndarray:
         """
         Sample for neural network.
         :return: the sampled image
@@ -185,15 +186,15 @@ class DisplayEngine:
 
 # Test routine
 if __name__ == '__main__':
-    engine = DisplayEngine(config.MONITOR_HEIGHT,
-                           config.MONITOR_WIDTH,
-                           config.STREAM_CHANNEL, 20, 100)
+    engine = FrameEditor(config.MONITOR_HEIGHT,
+                         config.MONITOR_WIDTH,
+                         config.STREAM_CHANNEL, 20, 100)
     stream = cv2.VideoCapture(config.URL_STREAM)
     while True:
         _, raw = stream.read()
         engine.set_frame(raw)
         engine.set_direction([0.2,0.5,0.3])
-        watch = engine.watch_sample()
+        watch = engine.get_observation()
         engine.set_salient(np.random.randn(watch.shape[0], watch.shape[1]))
         cv2.imshow('DisplayEngine', engine.render())
         # Press Q to quit
