@@ -84,6 +84,7 @@ class ContentForm(QMainWindow):
                 self.statusBar().addPermanentWidget(statusbar_item, item_layout["stretch"])
                 self.statusbar_set[item_layout["title"]] = statusbar_item
         # Setup form
+        self.setWindowModality(Qt.ApplicationModal)
         self.setWindowTitle(layout["title"])
         self.setWindowIcon(QIcon(layout["icon"]))
         if "center" in layout.keys() and layout["center"]:

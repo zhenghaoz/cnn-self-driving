@@ -10,6 +10,7 @@ from dataset import DataFile
 class Policy:
 
     def __init__(self, model_file, data_file, memory_size=3):
+        self.model_file = model_file
         # Load policy model
         self.policy = Network()
         self.policy.load(model_file)
@@ -19,6 +20,9 @@ class Policy:
         self.memory_permission = True
         self.memory_size = memory_size
         self.memory_file = DataFile(data_file)
+
+    def reload(self):
+        self.policy.load(self.model_file)
 
     def get_action(self, camera_frame, left_sensor, right_sensor, memory_mode):
         actions, salients = self.policy.predict([camera_frame])

@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import *
 
 import config
 import util
+from train import TrainForm
 from car import Car
 from editor import FrameEditor
 from form import ContentForm
@@ -48,10 +49,13 @@ class MainForm(ContentForm):
         self.setEvent("打开视频位置", self.action_open_video_folder)
         self.setEvent("打开数据位置", self.action_open_data_folder)
         self.setEvent("浏览训练数据", self.open_data_explorer)
+        self.setEvent("开始训练模型", self.open_train)
         self.setEvent("项目主页", self.action_browse_home_page)
         self.setEvent("帮助", self.action_usage)
+        # Create sub forms
         self.policy = Policy('model/driver.ckpt', '../data/m')
         self.explorer = ExplorerForm(self.policy.policy)
+        self.train = TrainForm(self.policy.policy)
         # Connect
         try:
             self.car = Car('192.168.1.1')
@@ -170,6 +174,10 @@ class MainForm(ContentForm):
 
     def open_data_explorer(self):
         self.explorer.show()
+
+    def open_train(self):
+        self.train.show()
+        self.policy.reload()
 
     @staticmethod
     def action_browse_home_page():

@@ -17,6 +17,7 @@ class TrainForm(QMainWindow):
         self.model = model
         # Set title
         self.setWindowTitle("训练模型")
+        self.setWindowModality(Qt.ApplicationModal)
         # Setup panel
         tool_panel = QToolBar()
         self.addToolBar(Qt.LeftToolBarArea, tool_panel)
