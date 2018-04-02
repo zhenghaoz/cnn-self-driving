@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 
-import asset
 import config
 
 
@@ -14,9 +13,9 @@ class FrameEditor:
     DIRECTION_MARGIN = 10
     DIRECTION_PADDING = 10
     DIRECTION_ICONS = [
-        asset.ICON_LEFT_ARROW,
-        asset.ICON_UP_ARROW,
-        asset.ICON_RIGHT_ARROW
+        '../res/left_arrow.png',
+        '../res/up_arrow.png',
+        '../res/right_arrow.png'
     ]
 
     SENSOR_MARGIN = 10
