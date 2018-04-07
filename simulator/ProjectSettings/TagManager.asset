@@ -7,6 +7,7 @@ TagManager:
   - Disqualification
   - FinishLine
   - Checkpoint
+  - GuideLine
   layers:
   - Default
   - TransparentFX
