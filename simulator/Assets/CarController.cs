@@ -6,7 +6,7 @@ public class CarController : MonoBehaviour {
 	public float transportSpeed;
 	public float rotateSpeed;
 
-	private enum Action { Stop, Forward, Backward, TurnLeft, TurnRight }
+	public enum Action { Stop, Forward, Backward, TurnLeft, TurnRight, Freeze }
 
 	private Action action;
 	private Stack<KeyCode> keyStack = new Stack<KeyCode>();
@@ -91,22 +91,31 @@ public class CarController : MonoBehaviour {
 	}
 		
 	public void Stop() {
-		action = Action.Stop;
+		if (action != Action.Freeze)
+			action = Action.Stop;
 	}
 
 	public void Forward() {
-		action = Action.Forward;
+		if (action != Action.Freeze)
+			action = Action.Forward;
 	}
 
 	public void Backward() {
-		action = Action.Backward;
+		if (action != Action.Freeze)
+			action = Action.Backward;
 	}
 
 	public void TurnLeft() {
-		action = Action.TurnLeft;
+		if (action != Action.Freeze)
+			action = Action.TurnLeft;
 	}
 
 	public void TurnRight() {
-		action = Action.TurnRight;
+		if (action != Action.Freeze)
+			action = Action.TurnRight;
+	}
+
+	public void Freeze() {
+		action = Action.Freeze;
 	}
 }

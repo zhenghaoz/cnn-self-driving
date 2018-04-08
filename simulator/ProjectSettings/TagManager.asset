@@ -8,6 +8,7 @@ TagManager:
   - FinishLine
   - Checkpoint
   - GuideLine
+  - Milestone
   layers:
   - Default
   - TransparentFX
