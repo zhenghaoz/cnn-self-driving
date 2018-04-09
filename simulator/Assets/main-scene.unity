@@ -2103,7 +2103,7 @@ Transform:
   m_PrefabInternal: {fileID: 0}
   m_GameObject: {fileID: 1163909578}
   m_LocalRotation: {x: 0.043619405, y: 0, z: 0, w: 0.9990483}
-  m_LocalPosition: {x: -0, y: 0.7, z: 1.5}
+  m_LocalPosition: {x: -0, y: 1.2, z: 1.5}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 1860637835}
@@ -3033,10 +3033,10 @@ GameObject:
   m_Component:
   - component: {fileID: 1860637835}
   - component: {fileID: 1860637832}
-  - component: {fileID: 1860637831}
   - component: {fileID: 1860637833}
   - component: {fileID: 1860637834}
   - component: {fileID: 1860637836}
+  - component: {fileID: 1860637831}
   m_Layer: 8
   m_Name: car_root
   m_TagString: Untagged
@@ -3052,10 +3052,12 @@ MonoBehaviour:
   m_GameObject: {fileID: 1860637830}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d5a5ae4c8baf46945b58e82c44f9b787, type: 3}
+  m_Script: {fileID: 11500000, guid: aadeb24a67ca5e04b9b6deb1a8f97b31, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  controlPort: 8081
+  sensorPort: 8082
+  frontLeftWheel: {fileID: 0}
+  frontRightWheel: {fileID: 0}
 --- !u!54 &1860637832
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -3101,6 +3103,7 @@ MonoBehaviour:
   streamHeight: 240
   streamPort: 8080
   streamCamera: {fileID: 1548763719}
+  frame: 
 --- !u!4 &1860637835
 Transform:
   m_ObjectHideFlags: 0
@@ -3127,12 +3130,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 1860637830}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f899d528e901aec4e807daae4ecd05fd, type: 3}
+  m_Script: {fileID: 11500000, guid: 66fde0b9bfbe56a4399c0f824b7bd64b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  sensorPort: 8082
-  frontLeftWheel: {fileID: 339067848}
-  frontRightWheel: {fileID: 1926785028}
+  controlPort: 8081
 --- !u!1 &1866910424
 GameObject:
   m_ObjectHideFlags: 0
@@ -3256,7 +3257,7 @@ Transform:
   m_PrefabInternal: {fileID: 0}
   m_GameObject: {fileID: 1903184087}
   m_LocalRotation: {x: 0.0436194, y: -0, z: -0, w: 0.99904823}
-  m_LocalPosition: {x: 0, y: 0.7, z: 1.5000005}
+  m_LocalPosition: {x: 0, y: 1.2, z: 1.5000005}
   m_LocalScale: {x: 1, y: 1.0000001, z: 1}
   m_Children: []
   m_Father: {fileID: 1860637835}

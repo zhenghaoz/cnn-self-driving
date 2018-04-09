@@ -6,14 +6,21 @@ public class CarController : MonoBehaviour {
 	public float transportSpeed;
 	public float rotateSpeed;
 
-	public enum Action { Stop, Forward, Backward, TurnLeft, TurnRight, Freeze }
+	public enum Action { Stop, Forward, Backward, TurnLeft, TurnRight, Out, Reset }
 
 	private Action action;
 	private Stack<KeyCode> keyStack = new Stack<KeyCode>();
 	private HashSet<KeyCode> keyPressed = new HashSet<KeyCode>();
 
+	private Vector3 initialPosition;
+	private Vector3 initialAngle;
+	private TcpSensor sensor;
+
 	public void Start() {
 		keyStack.Push (KeyCode.Space);
+		initialPosition = transform.position;
+		initialAngle = transform.eulerAngles;
+		sensor = GetComponent<TcpSensor> ();
 	}
 
 	public void Update() {
@@ -47,6 +54,10 @@ public class CarController : MonoBehaviour {
 			break;
 		case Action.TurnRight:
 			transform.Rotate(Vector3.up * rotateSpeed * Time.deltaTime, Space.World);
+			break;
+		case Action.Reset:
+			transform.position = initialPosition;
+			transform.eulerAngles = initialAngle;
 			break;
 		}
 	}
@@ -91,31 +102,39 @@ public class CarController : MonoBehaviour {
 	}
 		
 	public void Stop() {
-		if (action != Action.Freeze)
+		if (action != Action.Out)
 			action = Action.Stop;
 	}
 
 	public void Forward() {
-		if (action != Action.Freeze)
+		if (action != Action.Out)
 			action = Action.Forward;
 	}
 
 	public void Backward() {
-		if (action != Action.Freeze)
+		if (action != Action.Out)
 			action = Action.Backward;
 	}
 
 	public void TurnLeft() {
-		if (action != Action.Freeze)
+		if (action != Action.Out)
 			action = Action.TurnLeft;
 	}
 
 	public void TurnRight() {
-		if (action != Action.Freeze)
+		if (action != Action.Out)
 			action = Action.TurnRight;
 	}
 
-	public void Freeze() {
-		action = Action.Freeze;
+	public void Out() {
+		action = Action.Out;
+	}
+
+	public void Reset() {
+		action = Action.Reset;
+	}
+
+	public bool isOut() {
+		return action == Action.Out;
 	}
 }

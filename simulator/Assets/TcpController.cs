@@ -6,7 +6,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 
-public class WebController : MonoBehaviour {
+public class TcpController : MonoBehaviour {
 
 	public int controlPort;
 
@@ -41,6 +41,7 @@ public class WebController : MonoBehaviour {
 			}
 		} else if (data[0] == 0x10) {
 			Debug.Log ("Control: Reset");
+			controller.Reset ();
 		} else {
 			Debug.Log ("Control: Invalid command");
 		}

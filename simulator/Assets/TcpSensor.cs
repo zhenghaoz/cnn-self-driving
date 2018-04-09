@@ -7,16 +7,17 @@ using System.Net.Sockets;
 using System.Threading;
 
 
-public class CarSensor : MonoBehaviour {
+public class TcpSensor : MonoBehaviour {
 
 	public int sensorPort;
-	public Collider frontLeftWheel;
-	public Collider frontRightWheel;
 
-	private bool isOut = false;
-	private int score;
+	private int reward;
+	private CarController controller;
+	private WebStream stream;
 
 	public void Start() {
+		controller = GetComponent<CarController> ();
+		stream = GetComponent<WebStream> ();
 		Thread serverThread = new Thread (new ThreadStart (TCPServer));
 		serverThread.IsBackground = true;
 		serverThread.Start ();
@@ -24,9 +25,9 @@ public class CarSensor : MonoBehaviour {
 
 	public void OnTriggerEnter(Collider other) {
 		if (other.tag == "Disqualification") {
-			isOut = true;
+			controller.Out ();
 		} else if (other.tag == "Milestone") {
-			score += 1;
+			reward += 1;
 		}
 	}
 
@@ -45,12 +46,13 @@ public class CarSensor : MonoBehaviour {
 				if (length == 0)
 					break;
 				// Send sensor data
-				data[0] = 0x00;
-				if (isOut)
-					data[0] = (byte)(data[0] | 0x01);
-				handler.Send (data);
+				handler.Send (BitConverter.GetBytes(controller.isOut()));
 				// Send score data
-				handler.Send(BitConverter.GetBytes(score));
+				handler.Send(BitConverter.GetBytes(reward));
+				reward = 0;
+				// Send frame data
+				handler.Send(BitConverter.GetBytes(stream.frame.Length));
+				handler.Send (stream.frame);
 			}
 		}
 	}

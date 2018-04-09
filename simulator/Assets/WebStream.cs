@@ -12,6 +12,7 @@ public class WebStream : MonoBehaviour
 	public int streamHeight;
 	public int streamPort;
 	public Camera streamCamera;
+	public byte[] frame;
 
 	private Socket handler;
 	private Socket listener;
@@ -30,28 +31,28 @@ public class WebStream : MonoBehaviour
 	}
 
 	public void LateUpdate() {
+		// Render frame
+		RenderTexture rt = new RenderTexture(streamWidth, streamHeight, 24);
+		streamCamera.targetTexture = rt;
+		Texture2D screenShot = new Texture2D(streamWidth, streamHeight, TextureFormat.RGB24, false);
+		streamCamera.Render();
+		RenderTexture.active = rt;
+		screenShot.ReadPixels(new Rect(0, 0, streamWidth, streamHeight), 0, 0);
+		streamCamera.targetTexture = null;
+		RenderTexture.active = null;
+		// Encode frame data
+		frame = screenShot.EncodeToJPG();
 		if (handler != null) {
-			// Render frame
-			RenderTexture rt = new RenderTexture(streamWidth, streamHeight, 24);
-			streamCamera.targetTexture = rt;
-			Texture2D screenShot = new Texture2D(streamWidth, streamHeight, TextureFormat.RGB24, false);
-			streamCamera.Render();
-			RenderTexture.active = rt;
-			screenShot.ReadPixels(new Rect(0, 0, streamWidth, streamHeight), 0, 0);
-			streamCamera.targetTexture = null;
-			RenderTexture.active = null;
-			// Encode frame data
-			byte[] jpeg = screenShot.EncodeToJPG();
 			// Encode frame header
 			string header = "--b\r\n"
 				+ "Content-Type: image/jpeg\r\n"
-				+ "Content-length: " + jpeg.Length.ToString() + "\r\n" 
+				+ "Content-length: " + frame.Length.ToString() + "\r\n" 
 				+ "\r\n";
 			byte[] bytes = Encoding.UTF8.GetBytes(header);
 			// Send data
 			try {
 				handler.Send (bytes);
-				handler.Send (jpeg);
+				handler.Send (frame);
 			} catch (Exception e) {
 				Debug.Log("Stream: Disconnected");
 				handler = null;
