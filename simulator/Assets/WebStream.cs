@@ -16,9 +16,12 @@ public class WebStream : MonoBehaviour
 
 	private Socket handler;
 	private Socket listener;
+	private RenderTexture rt;
+	private Texture2D screenShot;
 
 	public void Start() {
 		Application.targetFrameRate = streamFPS; 
+		rt = new RenderTexture(streamWidth, streamHeight, 24);
 		// Setup HTTP server
 		IPEndPoint localEndPoint = new IPEndPoint(IPAddress.Any, streamPort);
 		listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
@@ -32,9 +35,9 @@ public class WebStream : MonoBehaviour
 
 	public void LateUpdate() {
 		// Render frame
-		RenderTexture rt = new RenderTexture(streamWidth, streamHeight, 24);
 		streamCamera.targetTexture = rt;
-		Texture2D screenShot = new Texture2D(streamWidth, streamHeight, TextureFormat.RGB24, false);
+		Destroy (screenShot);
+		screenShot = new Texture2D(streamWidth, streamHeight, TextureFormat.RGB24, false);
 		streamCamera.Render();
 		RenderTexture.active = rt;
 		screenShot.ReadPixels(new Rect(0, 0, streamWidth, streamHeight), 0, 0);

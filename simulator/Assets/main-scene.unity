@@ -3056,8 +3056,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   sensorPort: 8082
-  frontLeftWheel: {fileID: 0}
-  frontRightWheel: {fileID: 0}
 --- !u!54 &1860637832
 Rigidbody:
   m_ObjectHideFlags: 0
