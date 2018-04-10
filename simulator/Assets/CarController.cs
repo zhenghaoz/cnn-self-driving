@@ -8,19 +8,21 @@ public class CarController : MonoBehaviour {
 
 	public enum Action { Stop, Forward, Backward, TurnLeft, TurnRight, Out, Reset }
 
-	private Action action;
+	public List<GameObject> carSpwans;
+
+	private Action action = Action.Reset;
 	private Stack<KeyCode> keyStack = new Stack<KeyCode>();
 	private HashSet<KeyCode> keyPressed = new HashSet<KeyCode>();
 
-	private Vector3 initialPosition;
-	private Vector3 initialAngle;
 	private TcpSensor sensor;
+	private System.Random random = new System.Random();
+
+	private float positionY;
 
 	public void Start() {
 		keyStack.Push (KeyCode.Space);
-		initialPosition = transform.position;
-		initialAngle = transform.eulerAngles;
 		sensor = GetComponent<TcpSensor> ();
+		positionY = transform.position.y;
 	}
 
 	public void Update() {
@@ -56,8 +58,14 @@ public class CarController : MonoBehaviour {
 			transform.Rotate(Vector3.up * rotateSpeed * Time.deltaTime, Space.World);
 			break;
 		case Action.Reset:
-			transform.position = initialPosition;
-			transform.eulerAngles = initialAngle;
+			action = Action.Stop;
+			int index = random.Next (carSpwans.Count);
+			Vector3 position = carSpwans [index].transform.position;
+			position.y = positionY;
+			transform.position = position;
+			Vector3 angle = transform.eulerAngles;
+			angle.y = carSpwans [index].transform.eulerAngles.y;
+			transform.eulerAngles = angle;
 			break;
 		}
 	}
