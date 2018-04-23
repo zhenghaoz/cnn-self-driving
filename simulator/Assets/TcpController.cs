@@ -39,9 +39,6 @@ public class TcpController : MonoBehaviour {
 				Debug.Log ("Control: Stop");
 				controller.Stop ();
 			}
-		} else if (data[0] == 0x10) {
-			Debug.Log ("Control: Reset");
-			controller.Reset ();
 		} else {
 			Debug.Log ("Control: Invalid command");
 		}

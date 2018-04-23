@@ -6,27 +6,34 @@ public class CarController : MonoBehaviour {
 	public float transportSpeed;
 	public float rotateSpeed;
 
-	public enum Action { Stop, Forward, Backward, TurnLeft, TurnRight, Out, Reset }
+	public enum Action { 
+		Stop, 
+		Forward, 
+		Backward, 
+		TurnLeft, 
+		TurnRight, 
+		Out, 
+		Reset
+	}
 
 	public List<GameObject> carSpwans;
 
 	private Action action = Action.Reset;
 	private Stack<KeyCode> keyStack = new Stack<KeyCode>();
 	private HashSet<KeyCode> keyPressed = new HashSet<KeyCode>();
-
-	private TcpSensor sensor;
 	private System.Random random = new System.Random();
-
 	private float positionY;
+
+	private float leftDistance;
+	private float rightDistance;
 
 	public void Start() {
 		keyStack.Push (KeyCode.Space);
-		sensor = GetComponent<TcpSensor> ();
 		positionY = transform.position.y;
 	}
 
 	public void Update() {
-		// Get input
+		// Query input
 		if (Input.GetKeyDown(KeyCode.W))
 			KeyDown (KeyCode.W);
 		if (Input.GetKeyDown(KeyCode.A))
@@ -46,29 +53,31 @@ public class CarController : MonoBehaviour {
 		// Apply action
 		switch(action) {
 		case Action.Forward:
-			transform.position += transform.forward * transportSpeed * Time.deltaTime;
+			MoveForward(Time.deltaTime);
 			break;
 		case Action.Backward:
-			transform.position += transform.forward * -transportSpeed * Time.deltaTime;
+			MoveBackward(Time.deltaTime);
 			break;
 		case Action.TurnLeft:
-			transform.Rotate(Vector3.up * -rotateSpeed * Time.deltaTime, Space.World);
+			RotateLeft(Time.deltaTime);
 			break;
 		case Action.TurnRight:
-			transform.Rotate(Vector3.up * rotateSpeed * Time.deltaTime, Space.World);
+			RotateRight(Time.deltaTime);
 			break;
 		case Action.Reset:
 			action = Action.Stop;
-			int index = random.Next (carSpwans.Count);
-			Vector3 position = carSpwans [index].transform.position;
-			position.y = positionY;
-			transform.position = position;
-			Vector3 angle = transform.eulerAngles;
-			angle.y = carSpwans [index].transform.eulerAngles.y;
-			transform.eulerAngles = angle;
+			Respwan ();
 			break;
 		}
 	}
+
+	public void OnTriggerEnter(Collider other) {
+		if (other.tag == "Disqualification") {
+			action = Action.Out;
+		}
+	}
+
+	// Key event
 
 	private void KeyDown(KeyCode keyCode) {
 		if (!keyPressed.Contains (keyCode)) 
@@ -108,34 +117,32 @@ public class CarController : MonoBehaviour {
 			break;
 		}
 	}
+
+	// Status operation
 		
 	public void Stop() {
-		if (action != Action.Out)
+		if (!isOut())
 			action = Action.Stop;
 	}
 
 	public void Forward() {
-		if (action != Action.Out)
+		if (!isOut())
 			action = Action.Forward;
 	}
 
 	public void Backward() {
-		if (action != Action.Out)
+		if (!isOut())
 			action = Action.Backward;
 	}
 
 	public void TurnLeft() {
-		if (action != Action.Out)
+		if (!isOut())
 			action = Action.TurnLeft;
 	}
 
 	public void TurnRight() {
-		if (action != Action.Out)
+		if (!isOut())
 			action = Action.TurnRight;
-	}
-
-	public void Out() {
-		action = Action.Out;
 	}
 
 	public void Reset() {
@@ -144,5 +151,33 @@ public class CarController : MonoBehaviour {
 
 	public bool isOut() {
 		return action == Action.Out;
+	}
+
+	// Movement operations
+
+	public void MoveForward(float deltaTime) {
+		transform.position += transform.forward * transportSpeed * deltaTime;
+	}
+
+	public void MoveBackward(float deltaTime) {
+		transform.position += transform.forward * -transportSpeed * deltaTime;
+	}
+
+	public void RotateLeft(float deltaTime) {
+		transform.Rotate(Vector3.up * -rotateSpeed * deltaTime, Space.World);
+	}
+
+	public void RotateRight(float deltaTime) {
+		transform.Rotate(Vector3.up * rotateSpeed * deltaTime, Space.World);
+	}
+
+	public void Respwan() {
+		int index = random.Next (carSpwans.Count);
+		Vector3 position = carSpwans [index].transform.position;
+		position.y = positionY;
+		transform.position = position;
+		Vector3 angle = transform.eulerAngles;
+		angle.y = carSpwans [index].transform.eulerAngles.y;
+		transform.eulerAngles = angle;
 	}
 }
