@@ -57,7 +57,7 @@ public class WebStream : MonoBehaviour
 			handler.Send (bytes);
 			handler.Send (frame);
 		} catch (Exception e) {
-			Debug.Log("Stream: Disconnected");
+			Debug.Log("Stream: " + e.Message);
 			handler = null;
 			evt.Set ();
 		}

@@ -34,6 +34,7 @@ public class DirectController : MonoBehaviour {
 		if (handler == null)
 			return;
 		bool disconnected = false;
+		string message = "Disconnected";
 		try {
 			byte[] data = new byte[1];
 			int length = handler.Receive(data);
@@ -57,10 +58,11 @@ public class DirectController : MonoBehaviour {
 			updated = true;
 		} catch (Exception e) {
 			disconnected = true;
+			message = e.Message;
 		}
 		// Reset handler after disconnected
 		if (disconnected) {
-			Debug.Log ("Direct: Disconnected");
+			Debug.Log ("Direct: " + message);
 			handler = null;
 			evt.Set ();
 		}
