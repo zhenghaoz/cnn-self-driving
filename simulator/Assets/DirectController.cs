@@ -17,7 +17,6 @@ public class DirectController : MonoBehaviour {
 	public List<GameObject> distanceSensors;
 
 	private bool updated = false;
-	private int reward = 0;
 	private Socket handler;
 	private CarController controller;
 	private RenderTexture rt;
@@ -44,18 +43,14 @@ public class DirectController : MonoBehaviour {
 			switch (data[0]) {
 			case 0x00:
 				controller.RotateLeft(deltaTime);
-				reward = 0;
 				break;
 			case 0x01:
 				controller.RotateRight(deltaTime);
-				reward = 0;
 				break;
 			case 0x02:
 				controller.MoveForward(deltaTime);
-				reward = 1;
 				break;
 			case 0xff:
-				reward = 0;
 				controller.Reset();
 				break;
 			}
@@ -76,7 +71,9 @@ public class DirectController : MonoBehaviour {
 			return;
 		updated = false;
 		try {
-			// Render
+			// Send isOut
+			handler.Send(BitConverter.GetBytes(controller.isOut()));
+			// Render frame
 			frontCamera.targetTexture = rt;
 			Texture2D screenShot = new Texture2D(directWidth, directHeight, TextureFormat.RGB24, false);
 			frontCamera.Render();
@@ -86,13 +83,9 @@ public class DirectController : MonoBehaviour {
 			RenderTexture.active = null;
 			byte[] frame = screenShot.EncodeToJPG ();
 			Destroy (screenShot);
-			// Send observation
+			// Send frame
 			handler.Send(BitConverter.GetBytes(frame.Length));
 			handler.Send(frame);
-			// Send reward
-			handler.Send(BitConverter.GetBytes(reward));
-			// Send done
-			handler.Send(BitConverter.GetBytes(controller.isOut()));
 			// Detect distance
 			float[] distance = new float[distanceSensors.Count];
 			for (int i = 0; i < distance.Length; i++) {
@@ -108,7 +101,7 @@ public class DirectController : MonoBehaviour {
 			for (int i = 0; i < distance.Length; i++)
 				handler.Send(BitConverter.GetBytes(distance[i]));
 		} catch (Exception e) {
-			Debug.Log ("Direct: Disconnected");
+			Debug.Log ("Direct: " + e.Message);
 			handler = null;
 			evt.Set ();
 		}
