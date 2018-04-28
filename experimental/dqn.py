@@ -26,7 +26,7 @@ def learn(env,
           log_steps=10000,
           ep_len=1000,
           output=None):
-    """Run Deep Q-learning algorithm.
+    """Run Deep Q-learning experimental.
 
     You can specify your own convnet using q_func.
 
@@ -56,7 +56,7 @@ def learn(env,
     exploration: rl_algs.deepq.utils.schedules.Schedule
         schedule for probability of chosing random action.
     stopping_criterion: (env, t) -> bool
-        should return true when it's ok for the RL algorithm to stop.
+        should return true when it's ok for the RL experimental to stop.
         takes in env and the number of steps executed so far.
     replay_buffer_size: int
         How many memories to store in the replay buffer.

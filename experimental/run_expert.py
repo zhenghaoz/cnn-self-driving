@@ -21,7 +21,7 @@ class NeuralNetwork:
         self.sy_act = tf.placeholder(tf.int32, shape=[None])
         # Network
         if len(obs_dim) == 1:
-            self.sy_logit = build_mlp(self.sy_obs, num_actions, obs_dim[0], "mlp")
+            self.sy_logit = build_mlp(self.sy_obs, num_actions, "mlp")
         elif len(obs_dim) == 3:
             self.sy_logit = build_cnn(self.sy_obs, num_actions, "cnn")
         else:
