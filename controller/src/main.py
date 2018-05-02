@@ -1,26 +1,25 @@
 import os.path
 import socket
 import sys
-import time
 import webbrowser
 from datetime import datetime
 from threading import Thread
-
+import numpy as np
+import config
 import cv2
+import util
 from PyQt5 import Qt
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
-
-import config
-import util
-from train import TrainForm
 from car import Car
-from editor import FrameEditor
-from form import ContentForm
 from dataset import DataFile
-from policy import Network, Policy
+from editor import FrameEditor
 from explorer import ExplorerForm
+from form import ContentForm
+from cnn import CNN
+from train import TrainForm
+
 
 class MainForm(ContentForm):
 
@@ -32,19 +31,21 @@ class MainForm(ContentForm):
         self.camera_mode = False
         self.video_mode = False
         self.data_mode = False
+        self.test_mode = False
         self.auto_mode = False
         self.key_stack = [Qt.Key_Space]
         self.key_status = {}
-        self.left_sensor = 0
-        self.right_sensor = 0
+        self.total_frame = 0
+        self.auto_frame = 0
         # Setup folder
-        for dir in [config.DIR_DATA, config.DIR_VIDEO, config.DIR_PHOTO]:
+        for dir in [config.DIR_DATA, config.video_dir, config.image_dir]:
             if not os.path.exists(dir):
                 os.makedirs(dir)
         # Setup event
         self.setEvent("截图", self.action_camera)
         self.setEvent("录制视频", self.action_video)
         self.setEvent("录制数据", self.action_data)
+        self.setEvent("性能测试", self.action_test)
         self.setEvent("打开截图位置", self.action_open_photo_folder)
         self.setEvent("打开视频位置", self.action_open_video_folder)
         self.setEvent("打开数据位置", self.action_open_data_folder)
@@ -53,12 +54,12 @@ class MainForm(ContentForm):
         self.setEvent("项目主页", self.action_browse_home_page)
         self.setEvent("帮助", self.action_usage)
         # Create sub forms
-        self.policy = Policy('../model/driver.ckpt', '../data/m')
-        self.explorer = ExplorerForm(self.policy.policy)
-        self.train = TrainForm(self.policy.policy)
+        self.cnn = CNN([config.observation_height, config.observation_width, config.observation_channel], model_file=config.model_file)
+        self.explorer = ExplorerForm(self.cnn)
+        self.train = TrainForm(self.cnn)
         # Connect
         try:
-            self.car = Car('127.0.0.1')
+            self.car = Car(config.host)
             self.setText("状态栏", "连接成功")
             self.key_map = {
                 Qt.Key_Space: self.car.stop,
@@ -126,28 +127,27 @@ class MainForm(ContentForm):
             self.setText("状态栏", "视频录制完成")
             # Reset action to [start]
             self.action_set["录制视频"].setText("录制视频")
-            self.action_set["录制视频"].setIcon(QIcon("../res/start_record.png"))
+            self.action_set["录制视频"].setIcon(QIcon("../res/video.png"))
         else:
-            file_name = config.DIR_VIDEO + datetime.utcnow().strftime('%Y-%m-%dL%H:%M:%S:%f') + '.mkv'
+            file_name = config.video_dir + datetime.utcnow().strftime('%Y-%m-%dL%H:%M:%S:%f') + '.mkv'
             self.setText("状态栏", "开始录制视频：" + file_name)
-            self.video_writer = cv2.VideoWriter(file_name, config.STREAN_FOURCC,
-                                                config.STREAM_FPS, (config.STREAM_WIDTH, config.STREAM_HEIGHT))
+            self.video_writer = cv2.VideoWriter(file_name, config.video_fourcc,
+                                                config.stream_fps, (config.stream_width, config.stream_height))
             self.video_mode = True
             # Reset action to [stop]
             self.action_set["录制视频"].setText("停止录制视频")
-            self.action_set["录制视频"].setIcon(QIcon("../res/stop_record.png"))
+            self.action_set["录制视频"].setIcon(QIcon("../res/video_stop.png"))
 
     def action_data(self):
         if self.data_mode:
             self.data_mode = False
             # Save video
-            file_name = config.DIR_DATA + config.DATA_FILE
-            self.data_file = DataFile(file_name)
+            self.data_file = DataFile(config.data_file)
             self.data_file.append(self.data_observations, self.data_actions)
             self.setText("状态栏", "视频录制完成：" + file_name)
             # Reset action to [start]
             self.action_set["录制数据"].setText("录制数据")
-            self.action_set["录制数据"].setIcon(QIcon("../res/start_record.png"))
+            self.action_set["录制数据"].setIcon(QIcon("../res/data.png"))
         else:
             self.setText("状态栏", "开始录制数据")
             self.data_observations = []
@@ -155,15 +155,29 @@ class MainForm(ContentForm):
             self.data_mode = True
             # Reset action to [stop]
             self.action_set["录制数据"].setText("停止录制数据")
-            self.action_set["录制数据"].setIcon(QIcon("../res/stop_record.png"))
+            self.action_set["录制数据"].setIcon(QIcon("../res/data_stop.png"))
+
+    def action_test(self):
+        if self.test_mode:
+            self.test_mode = False
+            if self.total_frame > 0:
+                self.setText("状态栏", "性能指标：%f" % (self.auto_frame/self.total_frame))
+            self.auto_frame = 0
+            self.total_frame = 0
+            self.action_set["性能测试"].setText("性能测试")
+            self.action_set["性能测试"].setIcon(QIcon("../res/test.png"))
+        else:
+            self.test_mode = True
+            self.action_set["性能测试"].setText("停止性能测试")
+            self.action_set["性能测试"].setIcon(QIcon("../res/test_stop.png"))
 
     @staticmethod
     def action_open_photo_folder():
-        util.open_file_xdg(config.DIR_PHOTO)
+        util.open_file_xdg(config.image_dir)
 
     @staticmethod
     def action_open_video_folder():
-        util.open_file_xdg(config.DIR_VIDEO)
+        util.open_file_xdg(config.video_dir)
 
     @staticmethod
     def action_open_data_folder():
@@ -174,7 +188,7 @@ class MainForm(ContentForm):
 
     def open_train(self):
         self.train.show()
-        self.policy.reload()
+        self.cnn.load(config.model_file)
 
     @staticmethod
     def action_browse_home_page():
@@ -187,11 +201,11 @@ class MainForm(ContentForm):
         qbox.show()
 
     def streamer(self):
-        frame_editor = FrameEditor(config.STREAM_HEIGHT,
-                             config.STREAM_WIDTH,
-                             config.STREAM_CHANNEL,
-                             Network.INPUT_HEIGHT,
-                             Network.INPUT_WIDTH)
+        frame_editor = FrameEditor(config.stream_height,
+                                   config.stream_width,
+                                   config.stream_channel,
+                                   config.observation_height,
+                                   config.observation_width)
 
         while self.keep_streamer:
             ret, frame = self.car.read_camera()
@@ -201,7 +215,10 @@ class MainForm(ContentForm):
             frame_editor.set_frame(frame)
             observation = frame_editor.get_observation()
             # # Predict actions
-            action, prob, salient = self.policy.get_action(observation, self.left_sensor, self.right_sensor, self.auto_mode)
+            probs, salients = self.cnn.predict([observation])
+            prob = probs[0]
+            salient = salients[0]
+            action = np.argmax(prob)
             frame_editor.set_direction(prob)
             frame_editor.set_salient(salient)
             frame = frame_editor.render(draw_salient=self.isChecked("显示观测区域活跃度"),
@@ -213,7 +230,7 @@ class MainForm(ContentForm):
             self.setContent(QPixmap.fromImage(image))
             # Camera mode
             if self.camera_mode:
-                file_name = config.DIR_PHOTO + datetime.utcnow().strftime('%Y-%m-%dL%H:%M:%S:%f') + '.png'
+                file_name = config.image_dir + datetime.utcnow().strftime('%Y-%m-%dL%H:%M:%S:%f') + '.png'
                 cv2.imwrite(file_name, frame)
                 self.setText("状态栏", "截图保存至：%s" % file_name)
                 self.camera_mode = False
@@ -225,9 +242,15 @@ class MainForm(ContentForm):
                 self.data_observations.append(observation)
                 action_map = {Qt.Key_A:0, Qt.Key_D:1, Qt.Key_W:2}
                 self.data_actions.append(action_map[self.key_stack[-1]])
-            # # Self driving
+            # Self driving
             if self.auto_mode:
                 self.car.step(action)
+            if self.test_mode:
+                if self.auto_mode:
+                    self.auto_frame += 1
+                    self.total_frame += 1
+                elif self.key_stack[-1] != Qt.Key_Space:
+                    self.total_frame += 1
 
 
 if __name__ == '__main__':

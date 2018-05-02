@@ -18,6 +18,10 @@ class DataFile:
         with open(self.data_file, 'rb') as file:
             self.data = pickle.load(file)
 
+    def __len__(self):
+        assert len(self.data['action']) == len(self.data['observation'])
+        return len(self.data['observation'])
+
     def append(self, observation, action):
         self.data['action'] += action
         self.data['observation'] += observation

@@ -7,12 +7,12 @@ from matplotlib.figure import Figure
 
 import config
 from dataset import DataFile
-from policy import Network
+from cnn import CNN
 
 
 class TrainForm(QMainWindow):
 
-    def __init__(self, model: Network):
+    def __init__(self, model: CNN):
         super().__init__()
         self.model = model
         # Set title
@@ -92,7 +92,10 @@ class TrainForm(QMainWindow):
     def train_model(self):
         # Load data
         self.setLog("正在加载数据...")
-        data_file = DataFile(config.DIR_DATA + config.DATA_FILE)
+        data_file = DataFile(config.data_file)
+        if len(data_file) == 0:
+            self.setLog("无训练数据")
+            return
         train_obs, train_act, test_obs, test_act = data_file.gen_train_set()
         # Clear history
         self.loss_hist = []
@@ -146,7 +149,7 @@ class TrainForm(QMainWindow):
 
     def save_model(self):
         self.btn_save_model.setDisabled(True)
-        self.model.save(config.MODEL_FILE)
+        self.model.save(config.model_file)
 
     def save_image(self):
         file_name, _ = QFileDialog.getSaveFileName(self, "保存图片")
