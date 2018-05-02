@@ -79,16 +79,7 @@ class FrameEditor:
         # assert len(direction) == 3
         self.direction = np.asarray([direction[0], direction[2], direction[1]])
 
-    def set_sensor(self, left_sensor: bool, right_sensor: bool):
-        """
-        Set the status of two sensors
-        :param left_sensor: the status of left sensor
-        :param right_sensor: the status of right sensor
-        """
-        self.left_sensor = left_sensor
-        self.right_sensor = right_sensor
-
-    def render(self, draw_salient: bool=True, draw_prob: bool=True, draw_border: bool=True, draw_sensor: bool=True):
+    def render(self, draw_salient: bool=True, draw_prob: bool=True, draw_border: bool=True):
         """
         Render a frame for display.
         :param draw_salient: whether draw the salient map
@@ -122,11 +113,6 @@ class FrameEditor:
         # Draw watch area
         if draw_border:
             output_img = cv2.rectangle(output_img, (self.watch_left, self.watch_top), (self.watch_right - 1, self.watch_bottom - 1), (255, 255, 255))
-        if draw_sensor:
-            output_img = cv2.circle(output_img, (self.width-self.SENSOR_PADDING-self.SENSOR_SIZE, self.SENSOR_PADDING+self.SENSOR_SIZE),
-                                    self.SENSOR_SIZE, (0,0,255), -1 if self.right_sensor else 1)
-            output_img = cv2.circle(output_img, (self.width-self.SENSOR_PADDING-2*self.SENSOR_SIZE-self.SENSOR_MARGIN, self.SENSOR_PADDING+self.SENSOR_SIZE),
-                                    self.SENSOR_SIZE, (0,0,255), -1 if self.left_sensor else 1)
         # Draw salient map
         if draw_salient and self.mask is not None:
             min_weight = np.min(self.mask)
@@ -181,21 +167,3 @@ class FrameEditor:
         dst = cv2.add(src_bg, img_fg)
         src[top:bottom, left:right] = dst
         return src
-
-
-# Test routine
-if __name__ == '__main__':
-    engine = FrameEditor(config.MONITOR_HEIGHT,
-                         config.MONITOR_WIDTH,
-                         config.STREAM_CHANNEL, 20, 100)
-    stream = cv2.VideoCapture(config.URL_STREAM)
-    while True:
-        _, raw = stream.read()
-        engine.set_frame(raw)
-        engine.set_direction([0.2,0.5,0.3])
-        watch = engine.get_observation()
-        engine.set_salient(np.random.randn(watch.shape[0], watch.shape[1]))
-        cv2.imshow('DisplayEngine', engine.render())
-        # Press Q to quit
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break

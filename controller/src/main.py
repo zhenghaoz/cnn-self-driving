@@ -53,12 +53,12 @@ class MainForm(ContentForm):
         self.setEvent("项目主页", self.action_browse_home_page)
         self.setEvent("帮助", self.action_usage)
         # Create sub forms
-        self.policy = Policy('model/driver.ckpt', '../data/m')
+        self.policy = Policy('../model/driver.ckpt', '../data/m')
         self.explorer = ExplorerForm(self.policy.policy)
         self.train = TrainForm(self.policy.policy)
         # Connect
         try:
-            self.car = Car('192.168.1.1')
+            self.car = Car('127.0.0.1')
             self.setText("状态栏", "连接成功")
             self.key_map = {
                 Qt.Key_Space: self.car.stop,
@@ -75,15 +75,12 @@ class MainForm(ContentForm):
         self.keep_streamer = True
         self.thread_streamer = Thread(target=self.streamer)
         self.thread_streamer.start()
-        self.keep_sensor = True
-        self.thread_sensor = Thread(target=self.sensor)
-        self.thread_sensor.start()
 
     def closeEvent(self, event: QCloseEvent):
         self.keep_streamer = False
-        self.keep_sensor = False
+        # self.keep_sensor = False
         self.thread_streamer.join()
-        self.thread_sensor.join()
+        # self.thread_sensor.join()
 
     def keyPressEvent(self, event: QKeyEvent):
         # Ignore auto repeat
@@ -189,11 +186,6 @@ class MainForm(ContentForm):
         qbox.setText('W\t前进\nS\t后退\nA\t左转\nD\t右转\n空格\t刹车\n↑\t自动驾驶模式')
         qbox.show()
 
-    def sensor(self):
-        while self.keep_sensor:
-            self.left_sensor, self.right_sensor = 0, 0 #self.car.read_sensor()
-            time.sleep(0.02)
-
     def streamer(self):
         frame_editor = FrameEditor(config.STREAM_HEIGHT,
                              config.STREAM_WIDTH,
@@ -212,11 +204,9 @@ class MainForm(ContentForm):
             action, prob, salient = self.policy.get_action(observation, self.left_sensor, self.right_sensor, self.auto_mode)
             frame_editor.set_direction(prob)
             frame_editor.set_salient(salient)
-            frame_editor.set_sensor(self.left_sensor == 1, self.right_sensor == 1)
             frame = frame_editor.render(draw_salient=self.isChecked("显示观测区域活跃度"),
                                   draw_prob=self.isChecked("显示预测置信度"),
-                                  draw_border=self.isChecked("显示观测区域边框"),
-                                        draw_sensor=self.isChecked("显示红外线传感器状态"))
+                                  draw_border=self.isChecked("显示观测区域边框"))
             # Convert image
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             image = QImage(frame.data, frame.shape[1], frame.shape[0], QImage.Format_RGB888)
@@ -236,8 +226,8 @@ class MainForm(ContentForm):
                 action_map = {Qt.Key_A:0, Qt.Key_D:1, Qt.Key_W:2}
                 self.data_actions.append(action_map[self.key_stack[-1]])
             # # Self driving
-            # if self.task_self_driving:
-            #     self.car.step(action)
+            if self.auto_mode:
+                self.car.step(action)
 
 
 if __name__ == '__main__':
