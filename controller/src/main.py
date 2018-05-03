@@ -38,7 +38,7 @@ class MainForm(ContentForm):
         self.total_frame = 0
         self.auto_frame = 0
         # Setup folder
-        for dir in [config.DIR_DATA, config.video_dir, config.image_dir]:
+        for dir in [config.video_dir, config.image_dir]:
             if not os.path.exists(dir):
                 os.makedirs(dir)
         # Setup event
@@ -48,7 +48,6 @@ class MainForm(ContentForm):
         self.setEvent("性能测试", self.action_test)
         self.setEvent("打开截图位置", self.action_open_photo_folder)
         self.setEvent("打开视频位置", self.action_open_video_folder)
-        self.setEvent("打开数据位置", self.action_open_data_folder)
         self.setEvent("浏览训练数据", self.open_data_explorer)
         self.setEvent("开始训练模型", self.open_train)
         self.setEvent("项目主页", self.action_browse_home_page)
@@ -59,7 +58,9 @@ class MainForm(ContentForm):
         self.train = TrainForm(self.cnn)
         # Connect
         try:
-            self.car = Car(config.host)
+            self.car = Car(config.host,
+                           move_speed=config.move_speed,
+                           turn_speed=config.turn_speed)
             self.setText("状态栏", "连接成功")
             self.key_map = {
                 Qt.Key_Space: self.car.stop,
@@ -79,9 +80,7 @@ class MainForm(ContentForm):
 
     def closeEvent(self, event: QCloseEvent):
         self.keep_streamer = False
-        # self.keep_sensor = False
         self.thread_streamer.join()
-        # self.thread_sensor.join()
 
     def keyPressEvent(self, event: QKeyEvent):
         # Ignore auto repeat
@@ -144,7 +143,7 @@ class MainForm(ContentForm):
             # Save video
             self.data_file = DataFile(config.data_file)
             self.data_file.append(self.data_observations, self.data_actions)
-            self.setText("状态栏", "视频录制完成：" + file_name)
+            self.setText("状态栏", "视频录制完成：")
             # Reset action to [start]
             self.action_set["录制数据"].setText("录制数据")
             self.action_set["录制数据"].setIcon(QIcon("../res/data.png"))
@@ -161,7 +160,7 @@ class MainForm(ContentForm):
         if self.test_mode:
             self.test_mode = False
             if self.total_frame > 0:
-                self.setText("状态栏", "性能指标：%f" % (self.auto_frame/self.total_frame))
+                self.setText("状态栏", "性能指标：%f（%d帧）" % (self.auto_frame/self.total_frame, self.total_frame))
             self.auto_frame = 0
             self.total_frame = 0
             self.action_set["性能测试"].setText("性能测试")
@@ -178,10 +177,6 @@ class MainForm(ContentForm):
     @staticmethod
     def action_open_video_folder():
         util.open_file_xdg(config.video_dir)
-
-    @staticmethod
-    def action_open_data_folder():
-        util.open_file_xdg(config.DIR_DATA)
 
     def open_data_explorer(self):
         self.explorer.show()

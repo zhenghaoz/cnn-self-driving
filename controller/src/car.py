@@ -5,9 +5,14 @@ import cv2
 
 class Car:
 
-    def __init__(self, host, control_port=8081,
+    def __init__(self, host,
+                 move_speed,
+                 turn_speed,
+                 control_port=8081,
                  camera_port=8080,
                  time_out=1):
+        self.move_speed = move_speed
+        self.turn_speed = turn_speed
         # Create addresses
         control_addr = (host, control_port)
         camera_addr = 'http://%s:%d/?action=stream' % (host, camera_port)
@@ -30,15 +35,19 @@ class Car:
         self.control_socket.send(b'\xff\x00\x00\x00\xff')
 
     def forward(self):
+        self.set_speed(self.move_speed)
         self.control_socket.send(b'\xff\x00\x01\x00\xff')
 
     def backward(self):
+        self.set_speed(self.move_speed)
         self.control_socket.send(b'\xff\x00\x02\x00\xff')
 
     def turn_left(self):
+        self.set_speed(self.turn_speed)
         self.control_socket.send(b'\xff\x00\x03\x00\xff')
 
     def turn_right(self):
+        self.set_speed(self.turn_speed)
         self.control_socket.send(b'\xff\x00\x04\x00\xff')
 
     def set_speed(self, speed):
