@@ -253,6 +253,8 @@ def control_server():
                     i += 1
         # Close connection
         control_client_socket.close()
+        # Stop
+        motor_stop()
 
 
 if __name__ == '__main__':
