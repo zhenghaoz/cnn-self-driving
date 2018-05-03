@@ -1,12 +1,13 @@
 import binascii
-import struct
-import threading
 import time
 from socket import *
 
 import RPi.GPIO as GPIO
 
-import config
+# Config
+
+control_host = ''
+control_port = 8081
 
 # Ports
 
@@ -55,15 +56,18 @@ GPIO.setup(IN4, GPIO.OUT, initial=GPIO.LOW)
 GPIO.setup(IR_R, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.setup(IR_L, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
+
 # Light control
 
 def	open_main_light():
     GPIO.output(LED0, False)
     time.sleep(1)
 
+
 def	close_main_light():
     GPIO.output(LED0, True)
     time.sleep(1)
+
 
 def	marquee_light():
     for i in range(5):
@@ -91,6 +95,7 @@ def	marquee_light():
         GPIO.output(LED1, True)
         GPIO.output(LED2, True)
 
+
 # Motor control
 
 def motor_forward():
@@ -104,6 +109,7 @@ def motor_forward():
     GPIO.output(LED1, False)
     GPIO.output(LED2, False)
 
+
 def motor_backward():
     print('Motor: Backward')
     GPIO.output(ENA, True)
@@ -114,6 +120,7 @@ def motor_backward():
     GPIO.output(IN4, True)
     GPIO.output(LED1, True)
     GPIO.output(LED2, False)
+
 
 def motor_turn_left():
     print('Motor: Turn left')
@@ -126,6 +133,7 @@ def motor_turn_left():
     GPIO.output(LED1, False)
     GPIO.output(LED2, True)
 
+
 def motor_turn_right():
     print('Motor: Turn right')
     GPIO.output(ENA, True)
@@ -136,6 +144,7 @@ def motor_turn_right():
     GPIO.output(IN4, False)
     GPIO.output(LED1, False)
     GPIO.output(LED2, True)
+
 
 def motor_stop():
     print('Motor: Stop')
@@ -148,17 +157,20 @@ def motor_stop():
     GPIO.output(LED1, True)
     GPIO.output(LED2, True)
 
+
 def left_speed(num):
     speed = hex(eval('0x' + num))
     speed = int(speed, 16)
     print('Motor: Change speed of left motors to %d ' % speed)
     ENA_pwm.ChangeDutyCycle(speed)
 
+
 def right_speed(num):
     speed = hex(eval('0x' + num))
     speed = int(speed, 16)
     print('Motor: Change speed of right motors to %d ' % speed)
     ENB_pwm.ChangeDutyCycle(speed)
+
 
 # Decode
 
@@ -196,32 +208,6 @@ def command_decode(data):
     else:
         print('Decode: Invalid command.')
 
-# Servers
-
-def sensor_server():
-    # Start server
-    sensor_server_socket = socket(AF_INET, SOCK_STREAM)
-    sensor_server_socket.bind((config.SENSOR_HOST, config.SENSOR_PORT))
-    sensor_server_socket.listen(1)
-    while True:
-        print('Server: Waiting for connection')
-        sensor_client_socket, client_addr = sensor_server_socket.accept()
-        print('Server: Accept from ', client_addr)
-        while True:
-            try:
-                # Receive command from clients
-                sensor_client_socket.recv(1)
-                # Reply sensor status
-                data = 0
-                data = data | (GPIO.input(IR_L) << 0)
-                data = data | (GPIO.input(IR_R) << 1)
-                data = struct.pack('B', data)
-                sensor_client_socket.send(data)
-            except:
-                print("Server: Error receiving")
-                break
-        # Close connection
-        sensor_client_socket.close()
 
 def control_server():
     rec_flag = False
@@ -229,7 +215,7 @@ def control_server():
     buffer = []
     # Start server
     control_server_socket = socket(AF_INET, SOCK_STREAM)
-    control_server_socket.bind((config.CONTROL_HOST, config.CONTROL_PORT))
+    control_server_socket.bind((control_host, control_port))
     control_server_socket.listen(1)
     while True:
         # Waiting connection from clients
@@ -268,9 +254,7 @@ def control_server():
         # Close connection
         control_client_socket.close()
 
+
 if __name__ == '__main__':
     marquee_light()
-    t = threading.Thread(target=sensor_server)
-    t.setDaemon(True)
-    t.start()
     control_server()
