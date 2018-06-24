@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="996bc3d3-d666-4a6e-9400-dbc72c04a562" name="Default" comment="Use virtual configuration">
+    <list default="true" id="996bc3d3-d666-4a6e-9400-dbc72c04a562" name="Default" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
-      <change beforePath="$PROJECT_DIR$/controller/src/config.py" afterPath="$PROJECT_DIR$/controller/src/config.py" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
@@ -623,7 +622,14 @@
       <option name="project" value="LOCAL" />
       <updated>1529837596685</updated>
     </task>
-    <option name="localTasksCounter" value="42" />
+    <task id="LOCAL-00042" summary="Change speed">
+      <created>1529837681578</created>
+      <option name="number" value="00042" />
+      <option name="presentableId" value="LOCAL-00042" />
+      <option name="project" value="LOCAL" />
+      <updated>1529837681578</updated>
+    </task>
+    <option name="localTasksCounter" value="43" />
     <servers />
   </component>
   <component name="TestHistory">
@@ -695,7 +701,6 @@
     <option name="myLimit" value="2678400000" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Add another dropout layer" />
     <MESSAGE value="Sample from original immage" />
     <MESSAGE value="New directory structure" />
     <MESSAGE value="Remove used icons" />
@@ -720,7 +725,8 @@
     <MESSAGE value="Add training data for supervised learning experiment" />
     <MESSAGE value="Use the right way to delete a item" />
     <MESSAGE value="Remove reinforcement learning content" />
-    <option name="LAST_COMMIT_MESSAGE" value="Remove reinforcement learning content" />
+    <MESSAGE value="Change speed" />
+    <option name="LAST_COMMIT_MESSAGE" value="Change speed" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
