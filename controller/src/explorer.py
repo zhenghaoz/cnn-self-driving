@@ -113,7 +113,7 @@ class ExplorerForm(ContentForm):
         response = QMessageBox.question(self, "确认删除", "确认从训练数据中删除当前图片？", QMessageBox.Yes, QMessageBox.No)
         if response == QMessageBox.Yes:
             self.data_file.remove(self.viewer_index)
-            del self.data_pred[self.viewer_index]
+            np.delete(self.data_pred, self.viewer_index)
             self.next_image()
 
     def save_image(self):
