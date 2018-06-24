@@ -9,7 +9,10 @@ model_file = '../model/driver.ckpt'
 url_github = 'https://github.com/ZhangZhenghao/GrandRaspberryAuto'
 url_stream = 'http://192.168.1.1:8080/?action=stream'
 
-host = '192.168.1.1'
+# Connect to the real car
+# host = '192.168.1.1'
+# Connect to the virtual car
+host = '127.0.0.1'
 
 video_fourcc = cv2.VideoWriter_fourcc(*'XVID')
 
@@ -22,5 +25,5 @@ observation_height = 60
 observation_width = 160
 observation_channel = 3
 
-move_speed = 40
-turn_speed = 50
+move_speed = 30
+turn_speed = 60
