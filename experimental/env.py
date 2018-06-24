@@ -25,10 +25,15 @@ class Env:
         self.time_out = time_out
         self.socket = None
         self.done = True
+
+    def connect(self):
         # Connect
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.settimeout(self.time_out)
         self.socket.connect(self.address)
+
+    def close(self):
+        self.socket.close()
 
     def send_action(self, action):
         assert self.action_space.contains(action)
